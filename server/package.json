@@ -1,0 +1,18 @@
+{
+  "name": "manog-screener-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "p-limit": "^5.0.0",
+    "technicalindicators": "^3.1.0",
+    "yahoo-finance2": "^4.0.2"
+  }
+}

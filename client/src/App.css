@@ -1,0 +1,222 @@
+:root {
+  color-scheme: light dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.5rem;
+}
+
+.subtitle {
+  margin: 0 0 1.5rem;
+  color: #888;
+  font-size: 0.9rem;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.controls button {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.95rem;
+  border-radius: 6px;
+  border: 1px solid #4a7dff;
+  background: #4a7dff;
+  color: white;
+  cursor: pointer;
+}
+
+.controls button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.progress,
+.updated-at {
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.error {
+  color: #d84a4a;
+  font-size: 0.9rem;
+}
+
+.empty-state {
+  color: #888;
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.results-table th {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 2px solid #444;
+  color: #888;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.results-table td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid #333;
+}
+
+.results-table tbody tr.clickable-row {
+  cursor: pointer;
+}
+
+.results-table tbody tr.clickable-row:hover {
+  background: rgba(74, 125, 255, 0.08);
+}
+
+.symbol-cell {
+  display: flex;
+  flex-direction: column;
+  max-width: 170px;
+}
+
+.symbol {
+  font-weight: 600;
+}
+
+.name {
+  font-size: 0.78rem;
+  color: #888;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.positive {
+  color: #2ba84a;
+  font-weight: 600;
+}
+
+.negative {
+  color: #d84a4a;
+  font-weight: 600;
+}
+
+.chart-link {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.82rem;
+  border-radius: 5px;
+  border: 1px solid #4a7dff;
+  background: transparent;
+  color: #4a7dff;
+  cursor: pointer;
+}
+
+.delete-link {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.82rem;
+  border-radius: 5px;
+  border: 1px solid #666;
+  background: transparent;
+  color: #aaa;
+  cursor: pointer;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid #333;
+}
+
+.tab {
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+  border: none;
+  background: transparent;
+  color: #888;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.tab.active {
+  color: #fff;
+  border-bottom-color: #4a7dff;
+}
+
+.holding-form {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.holding-form input {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: transparent;
+  color: inherit;
+  width: 180px;
+}
+
+.holding-form button {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9rem;
+  border-radius: 6px;
+  border: 1px solid #4a7dff;
+  background: #4a7dff;
+  color: white;
+  cursor: pointer;
+}
+
+.holding-form button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.badge {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.badge-sell {
+  background: rgba(216, 74, 74, 0.15);
+  color: #e05a5a;
+}
+
+.badge-hold {
+  background: rgba(43, 168, 74, 0.15);
+  color: #2ba84a;
+}
+
+.badge-neutral {
+  background: rgba(136, 136, 136, 0.15);
+  color: #888;
+}
