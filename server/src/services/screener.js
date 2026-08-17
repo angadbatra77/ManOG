@@ -33,31 +33,42 @@ export async function fetchWeeklyCandles(symbol) {
   }));
 }
 
+function qualifiesAt(candles, indicators, idx) {
+  const rsi = indicators.rsi[idx];
+  const bb = indicators.bb[idx];
+  const macd = indicators.macd[idx];
+  if (rsi == null || bb == null || macd == null) return false;
+  if (macd.MACD == null || macd.signal == null) return false;
+  return (
+    rsi > RSI_BUY_LEVEL &&
+    candles[idx].close > bb.upper &&
+    macd.MACD > macd.signal
+  );
+}
+
+// A stock stays a "buy" candidate for as long as it keeps satisfying all three
+// conditions (RSI>60, close above upper BB, MACD bullish), not just the single
+// week it first crossed. weeksInCriteria counts that streak, and stopLoss/
+// signalDate anchor to the week the streak began (the original breakout).
 function evaluateBuySignal(candles, indicators) {
   const lastIdx = candles.length - 1;
-  const prevIdx = lastIdx - 1;
-  if (prevIdx < 0) return null;
+  if (lastIdx < 1) return null;
 
-  const rsiNow = indicators.rsi[lastIdx];
-  const rsiPrev = indicators.rsi[prevIdx];
-  const bbNow = indicators.bb[lastIdx];
-  const macdNow = indicators.macd[lastIdx];
+  if (!qualifiesAt(candles, indicators, lastIdx)) return null;
 
-  if (rsiNow == null || rsiPrev == null || bbNow == null || macdNow == null) {
-    return null;
+  let streakStart = lastIdx;
+  while (
+    streakStart - 1 >= 0 &&
+    qualifiesAt(candles, indicators, streakStart - 1)
+  ) {
+    streakStart -= 1;
   }
-  if (macdNow.MACD == null || macdNow.signal == null) return null;
-
-  const rsiCrossedAbove = rsiPrev <= RSI_BUY_LEVEL && rsiNow > RSI_BUY_LEVEL;
-  const closeAboveUpperBB = candles[lastIdx].close > bbNow.upper;
-  const macdBullish = macdNow.MACD > macdNow.signal;
-
-  if (!(rsiCrossedAbove && closeAboveUpperBB && macdBullish)) return null;
 
   return {
-    signalDate: candles[lastIdx].date,
-    stopLoss: candles[lastIdx].low,
-    rsi: rsiNow,
+    signalDate: candles[streakStart].date,
+    stopLoss: candles[streakStart].low,
+    weeksInCriteria: lastIdx - streakStart + 1,
+    rsi: indicators.rsi[lastIdx],
   };
 }
 
@@ -97,6 +108,7 @@ export async function runScreener({ limit, onProgress } = {}) {
                 change1m: pctChange(candles, 4),
                 stopLoss: signal.stopLoss,
                 signalDate: signal.signalDate,
+                weeksInCriteria: signal.weeksInCriteria,
               });
             }
           }

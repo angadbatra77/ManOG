@@ -14,6 +14,11 @@ function changeClass(value) {
   return value > 0 ? "positive" : value < 0 ? "negative" : "";
 }
 
+function formatWeeks(value) {
+  if (value == null) return "—";
+  return value === 1 ? "1 wk" : `${value} wks`;
+}
+
 function openTradingView(symbol) {
   window.open(
     `https://www.tradingview.com/chart/?symbol=NSE:${symbol}`,
@@ -35,6 +40,7 @@ export default function ResultsTable({ results }) {
           <th>Current Price</th>
           <th>1W Change</th>
           <th>1M Change</th>
+          <th>In Criteria</th>
           <th>Chart</th>
         </tr>
       </thead>
@@ -52,6 +58,7 @@ export default function ResultsTable({ results }) {
             <td>{formatPrice(row.price)}</td>
             <td className={changeClass(row.change1w)}>{formatPct(row.change1w)}</td>
             <td className={changeClass(row.change1m)}>{formatPct(row.change1m)}</td>
+            <td>{formatWeeks(row.weeksInCriteria)}</td>
             <td>
               <button
                 className="chart-link"
