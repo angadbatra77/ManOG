@@ -26,7 +26,9 @@ function ScreenerTab() {
 
   useEffect(() => {
     loadResults();
-    loadStatus();
+    loadStatus().then((data) => {
+      if (data.refreshing) startPolling();
+    });
     return () => clearInterval(pollRef.current);
   }, []);
 
