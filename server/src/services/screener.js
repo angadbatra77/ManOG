@@ -124,6 +124,11 @@ function pctChange(candles, weeksBack) {
 export async function runScreener({ limit, onProgress } = {}) {
   const universe = await getNseUniverse();
   const capFiltered = await filterByMarketCap(universe);
+  if (capFiltered.length === 0) {
+    throw new Error(
+      "Market cap filtering returned 0 candidates — likely a Yahoo Finance API failure, not a real market condition"
+    );
+  }
   const candidates = limit ? capFiltered.slice(0, limit) : capFiltered;
 
   const limiter = pLimit(HISTORY_CONCURRENCY);

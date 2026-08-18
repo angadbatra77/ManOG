@@ -40,14 +40,16 @@ function fromRow(row) {
 
 // Replaces today's snapshot with the latest refresh's matching stocks, so
 // "date-wise" history holds one clean set of matches per day rather than
-// accumulating duplicates from every click within the same day.
+// accumulating duplicates from every click within the same day. Refuses to
+// touch existing rows when results is empty — a zero-match run is far more
+// likely a transient scan failure than a real "nothing matched today", and
+// we'd rather keep stale-but-real data than silently wipe it.
 export async function saveDailySnapshot(results) {
-  if (!client) return;
+  if (!client || results.length === 0) return;
 
   const scanDate = todayIST();
   await client.from("screener_history").delete().eq("scan_date", scanDate);
 
-  if (results.length === 0) return;
   const rows = results.map((r) => toRow(scanDate, r));
   const { error } = await client.from("screener_history").insert(rows);
   if (error) throw new Error(error.message);
