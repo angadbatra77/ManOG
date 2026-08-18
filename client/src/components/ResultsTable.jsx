@@ -27,9 +27,15 @@ function openTradingView(symbol) {
   );
 }
 
-export default function ResultsTable({ results }) {
+export default function ResultsTable({ results, updatedAt }) {
   if (results.length === 0) {
-    return <p className="empty-state">No buy signals in the latest run.</p>;
+    return (
+      <p className="empty-state">
+        {updatedAt
+          ? "No buy signals in the latest run."
+          : "No scan has completed yet — click Refresh to run one (can take a couple of minutes for the full universe)."}
+      </p>
+    );
   }
 
   return (

@@ -78,7 +78,7 @@ function ScreenerTab() {
 
       {error && <p className="error">{error}</p>}
 
-      <ResultsTable results={results} />
+      <ResultsTable results={results} updatedAt={updatedAt} />
     </>
   );
 }
