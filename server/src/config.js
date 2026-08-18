@@ -17,7 +17,7 @@ export const MACD_SIGNAL_PERIOD = 9;
 export const WEEKLY_LOOKBACK_WEEKS = 110;
 
 // concurrent yahoo-finance2 history requests during a refresh
-export const HISTORY_CONCURRENCY = 8;
+export const HISTORY_CONCURRENCY = 16;
 
 // symbols per batched quote() call for market cap filtering
 export const QUOTE_BATCH_SIZE = 200;

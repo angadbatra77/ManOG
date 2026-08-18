@@ -1,5 +1,5 @@
 import pLimit from "p-limit";
-import { fetchWeeklyCandles } from "./screener.js";
+import { fetchWeeklyCandles, persistCandlesCache } from "./screener.js";
 import { computeIndicators } from "./indicators.js";
 
 const HOLDINGS_CONCURRENCY = 5;
@@ -37,7 +37,7 @@ function evaluateSellSignal(candles, indicators) {
 export async function evaluateHoldings(holdings) {
   const limiter = pLimit(HOLDINGS_CONCURRENCY);
 
-  return Promise.all(
+  const evaluated = await Promise.all(
     holdings.map((holding) =>
       limiter(async () => {
         const ySymbol = `${holding.symbol}.NS`;
@@ -78,4 +78,7 @@ export async function evaluateHoldings(holdings) {
       })
     )
   );
+
+  await persistCandlesCache();
+  return evaluated;
 }

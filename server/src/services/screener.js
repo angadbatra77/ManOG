@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import yahooFinance from "./yahooClient.js";
 import pLimit from "p-limit";
 import { getNseUniverse } from "./nseUniverse.js";
@@ -7,6 +9,7 @@ import {
   RSI_BUY_LEVEL,
   WEEKLY_LOOKBACK_WEEKS,
   HISTORY_CONCURRENCY,
+  DATA_DIR,
 } from "../config.js";
 
 function weeksAgoDate(weeks) {
@@ -15,7 +18,39 @@ function weeksAgoDate(weeks) {
   return d;
 }
 
+const CANDLES_CACHE_FILE = path.join(DATA_DIR, "weekly-candles-cache.json");
+// the current (still-forming) week's candle changes as the week progresses,
+// so this trades a bit of intra-week staleness for skipping ~1400 network
+// round-trips on repeat refreshes within the window
+const CANDLES_TTL_MS = 45 * 60 * 1000;
+
+let candlesCache = null;
+let candlesCacheDirty = false;
+
+async function loadCandlesCache() {
+  if (candlesCache) return candlesCache;
+  try {
+    candlesCache = JSON.parse(await fs.readFile(CANDLES_CACHE_FILE, "utf-8"));
+  } catch {
+    candlesCache = {};
+  }
+  return candlesCache;
+}
+
+export async function persistCandlesCache() {
+  if (!candlesCacheDirty) return;
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  await fs.writeFile(CANDLES_CACHE_FILE, JSON.stringify(candlesCache));
+  candlesCacheDirty = false;
+}
+
 export async function fetchWeeklyCandles(symbol) {
+  const cache = await loadCandlesCache();
+  const entry = cache[symbol];
+  if (entry && Date.now() - entry.fetchedAt < CANDLES_TTL_MS) {
+    return entry.candles;
+  }
+
   const result = await yahooFinance.chart(symbol, {
     period1: weeksAgoDate(WEEKLY_LOOKBACK_WEEKS),
     interval: "1wk",
@@ -23,7 +58,7 @@ export async function fetchWeeklyCandles(symbol) {
   const quotes = (result?.quotes ?? []).filter(
     (q) => q.close != null && q.high != null && q.low != null
   );
-  return quotes.map((q) => ({
+  const candles = quotes.map((q) => ({
     date: q.date,
     open: q.open,
     high: q.high,
@@ -31,6 +66,10 @@ export async function fetchWeeklyCandles(symbol) {
     close: q.close,
     volume: q.volume,
   }));
+
+  cache[symbol] = { fetchedAt: Date.now(), candles };
+  candlesCacheDirty = true;
+  return candles;
 }
 
 function qualifiesAt(candles, indicators, idx) {
@@ -121,6 +160,8 @@ export async function runScreener({ limit, onProgress } = {}) {
       })
     )
   );
+
+  await persistCandlesCache();
 
   results.sort((a, b) => (b.change1w ?? 0) - (a.change1w ?? 0));
   return results;
