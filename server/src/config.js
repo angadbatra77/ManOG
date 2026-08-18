@@ -26,3 +26,6 @@ export const NSE_EQUITY_LIST_URL =
   "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv";
 
 export const DATA_DIR = new URL("./data/", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
+
+export const SUPABASE_URL = process.env.SUPABASE_URL;
+export const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;

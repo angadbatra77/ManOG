@@ -220,3 +220,12 @@ header h1 {
   background: rgba(136, 136, 136, 0.15);
   color: #888;
 }
+
+.date-select {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #111;
+  color: inherit;
+}
