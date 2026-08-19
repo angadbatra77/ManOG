@@ -1,33 +1,12 @@
 import pLimit from "p-limit";
 import { fetchWeeklyCandles, persistCandlesCache } from "./screener.js";
 import { computeIndicators } from "./indicators.js";
+import { getHistoricalStopLoss } from "./historyDb.js";
 
 const HOLDINGS_CONCURRENCY = 5;
-
-function evaluateSellSignal(candles, indicators) {
-  const lastIdx = candles.length - 1;
-  const prevIdx = lastIdx - 1;
-  if (prevIdx < 0) return null;
-
-  const macdNow = indicators.macd[lastIdx];
-  const macdPrev = indicators.macd[prevIdx];
-  if (
-    !macdNow ||
-    !macdPrev ||
-    macdNow.MACD == null ||
-    macdNow.signal == null ||
-    macdPrev.MACD == null ||
-    macdPrev.signal == null
-  ) {
-    return null;
-  }
-
-  const crossedBelow =
-    macdPrev.MACD >= macdPrev.signal && macdNow.MACD < macdNow.signal;
-  if (!crossedBelow) return null;
-
-  return { signalDate: candles[lastIdx].date };
-}
+// how far the entered stop loss can deviate from what we last recorded for
+// this stock in the screener before it's flagged as a likely mistake
+const STOP_LOSS_DEVIATION_THRESHOLD = 0.25;
 
 // Ratchets the stop loss up to the highest weekly low seen since purchase,
 // never down — mathematically equivalent to raising it week over week
@@ -46,11 +25,24 @@ function computeTrailingStopLoss(candles, initialStopLoss, purchaseDate) {
   return trailing;
 }
 
+async function checkStopLossDeviation(symbol, stopLoss) {
+  if (stopLoss == null) return null;
+  const historical = await getHistoricalStopLoss(symbol);
+  if (!historical || !historical.stopLoss) return null;
+
+  const deviation = Math.abs(stopLoss - historical.stopLoss) / historical.stopLoss;
+  if (deviation <= STOP_LOSS_DEVIATION_THRESHOLD) return null;
+
+  return { historicalStopLoss: historical.stopLoss, scanDate: historical.scanDate };
+}
+
 /**
  * holdings: array of {id, symbol, name, quantity, avgBuyPrice, stopLoss, purchaseDate}
- * Returns each holding annotated with live price, MACD bullish/bearish state,
- * whether a sell signal (MACD crossed below signal this week) just fired, and
- * the current trailing stop loss.
+ *
+ * The Signal column is deliberately based on only two things, nothing else:
+ * (1) price closing at/below the trailing stop loss — capital-preservation
+ *     exit, and (2) MACD line currently below signal line (sustained bearish
+ *     state, not just the exact crossing week) — momentum-fading exit.
  */
 export async function evaluateHoldings(holdings) {
   const limiter = pLimit(HOLDINGS_CONCURRENCY);
@@ -66,19 +58,11 @@ export async function evaluateHoldings(holdings) {
             : null;
 
           let macdBullish = null;
-          let sellSignal = false;
-          let signalDate = null;
-
           if (candles.length > 30) {
             const indicators = computeIndicators(candles);
             const lastMacd = indicators.macd[indicators.macd.length - 1];
             if (lastMacd && lastMacd.MACD != null && lastMacd.signal != null) {
               macdBullish = lastMacd.MACD > lastMacd.signal;
-            }
-            const signal = evaluateSellSignal(candles, indicators);
-            if (signal) {
-              sellSignal = true;
-              signalDate = signal.signalDate;
             }
           }
 
@@ -88,22 +72,37 @@ export async function evaluateHoldings(holdings) {
             holding.purchaseDate
           );
 
+          const stopLossHit =
+            trailingStopLoss != null && price != null && price <= trailingStopLoss;
+          const macdSell = macdBullish === false;
+
+          let sellReason = null;
+          if (stopLossHit) sellReason = "stop_loss";
+          else if (macdSell) sellReason = "macd";
+
+          const stopLossWarning = await checkStopLossDeviation(
+            holding.symbol,
+            holding.stopLoss
+          );
+
           return {
             ...holding,
             price,
             macdBullish,
-            sellSignal,
-            signalDate,
             trailingStopLoss,
+            sellSignal: sellReason != null,
+            sellReason,
+            stopLossWarning,
           };
         } catch {
           return {
             ...holding,
             price: null,
             macdBullish: null,
-            sellSignal: false,
-            signalDate: null,
             trailingStopLoss: holding.stopLoss ?? null,
+            sellSignal: false,
+            sellReason: null,
+            stopLossWarning: null,
             error: true,
           };
         }

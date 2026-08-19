@@ -1,10 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../config.js";
-
-let client = null;
-if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-  client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-}
+import { supabase as client } from "./supabaseClient.js";
 
 function todayIST() {
   // date-wise history should follow Indian trading days, not the server's UTC date
@@ -76,6 +70,21 @@ export async function getAvailableDates() {
     .order("scan_date", { ascending: false });
   if (error) throw new Error(error.message);
   return [...new Set((data ?? []).map((r) => r.scan_date))];
+}
+
+// Most recent stop loss the screener itself recorded for this symbol, used
+// to sanity-check a manually-entered Holdings stop loss against reality.
+export async function getHistoricalStopLoss(symbol) {
+  if (!client) return null;
+  const { data, error } = await client
+    .from("screener_history")
+    .select("stop_loss, scan_date")
+    .eq("symbol", symbol)
+    .order("scan_date", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0 || data[0].stop_loss == null) return null;
+  return { stopLoss: data[0].stop_loss, scanDate: data[0].scan_date };
 }
 
 // The set of stocks that have ever appeared as a buy signal, across all

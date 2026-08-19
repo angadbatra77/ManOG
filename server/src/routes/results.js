@@ -2,8 +2,6 @@ import { Router } from "express";
 import { runScreener } from "../services/screener.js";
 import { getNseUniverse } from "../services/nseUniverse.js";
 import {
-  readCache,
-  writeCache,
   getStatus,
   setRefreshing,
   setProgress,
@@ -14,11 +12,15 @@ import {
   getHistoryForDate,
   getAvailableDates,
 } from "../services/historyDb.js";
+import {
+  saveLatestResults,
+  getLatestResults,
+} from "../services/latestResultsDb.js";
 
 const router = Router();
 
 router.get("/results", async (_req, res) => {
-  const cache = await readCache();
+  const cache = await getLatestResults();
   res.json(cache);
 });
 
@@ -66,7 +68,7 @@ router.post("/refresh", async (req, res) => {
       limit,
       onProgress: (done, total) => setProgress(done, total),
     });
-    await writeCache(results);
+    await saveLatestResults(results);
     // only record real, full-universe runs into date-wise history — not
     // partial test/dev runs triggered with a ?limit=
     if (!limit) {

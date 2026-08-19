@@ -229,3 +229,7 @@ header h1 {
   background: #111;
   color: inherit;
 }
+
+.warning-icon {
+  cursor: help;
+}

@@ -10,6 +10,12 @@ function pnlPercent(holding) {
   return ((holding.price - holding.avgBuyPrice) / holding.avgBuyPrice) * 100;
 }
 
+function sellReasonLabel(reason) {
+  if (reason === "stop_loss") return "STOP LOSS HIT";
+  if (reason === "macd") return "MOMENTUM FADING";
+  return null;
+}
+
 function openTradingView(symbol) {
   window.open(
     `https://www.tradingview.com/chart/?symbol=NSE:${symbol}`,
@@ -166,7 +172,18 @@ export default function HoldingsTab() {
                   </td>
                   <td>{h.quantity}</td>
                   <td>{h.avgBuyPrice != null ? formatPrice(h.avgBuyPrice) : "—"}</td>
-                  <td>{h.stopLoss != null ? formatPrice(h.stopLoss) : "—"}</td>
+                  <td>
+                    {h.stopLoss != null ? formatPrice(h.stopLoss) : "—"}
+                    {h.stopLossWarning && (
+                      <span
+                        className="warning-icon"
+                        title={`This looks off from what we last recorded for this stock: ₹${h.stopLossWarning.historicalStopLoss} on ${h.stopLossWarning.scanDate}. Double check for a typo.`}
+                      >
+                        {" "}
+                        ⚠️
+                      </span>
+                    )}
+                  </td>
                   <td className={h.trailingStopLoss > h.stopLoss ? "positive" : ""}>
                     {h.trailingStopLoss != null ? formatPrice(h.trailingStopLoss) : "—"}
                   </td>
@@ -178,7 +195,7 @@ export default function HoldingsTab() {
                     {h.error ? (
                       <span className="badge badge-neutral">N/A</span>
                     ) : h.sellSignal ? (
-                      <span className="badge badge-sell">SELL</span>
+                      <span className="badge badge-sell">{sellReasonLabel(h.sellReason)}</span>
                     ) : (
                       <span className="badge badge-hold">HOLD</span>
                     )}
