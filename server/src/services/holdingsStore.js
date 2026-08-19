@@ -19,7 +19,7 @@ async function writeHoldings(holdings) {
   await fs.writeFile(HOLDINGS_FILE, JSON.stringify(holdings, null, 2));
 }
 
-export async function addHolding({ symbol, name, quantity, avgBuyPrice }) {
+export async function addHolding({ symbol, name, quantity, avgBuyPrice, stopLoss }) {
   const holdings = await readHoldings();
   const holding = {
     id: crypto.randomUUID(),
@@ -28,6 +28,7 @@ export async function addHolding({ symbol, name, quantity, avgBuyPrice }) {
     quantity: Number(quantity),
     avgBuyPrice:
       avgBuyPrice != null && avgBuyPrice !== "" ? Number(avgBuyPrice) : null,
+    stopLoss: stopLoss != null && stopLoss !== "" ? Number(stopLoss) : null,
   };
   holdings.push(holding);
   await writeHoldings(holdings);

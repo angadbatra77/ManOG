@@ -21,7 +21,7 @@ function openTradingView(symbol) {
 export default function HoldingsTab() {
   const [holdings, setHoldings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ symbol: "", quantity: "", avgBuyPrice: "" });
+  const [form, setForm] = useState({ symbol: "", quantity: "", avgBuyPrice: "", stopLoss: "" });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -50,13 +50,14 @@ export default function HoldingsTab() {
           symbol: form.symbol.trim(),
           quantity: form.quantity,
           avgBuyPrice: form.avgBuyPrice,
+          stopLoss: form.stopLoss,
         }),
       });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "Failed to add holding");
       }
-      setForm({ symbol: "", quantity: "", avgBuyPrice: "" });
+      setForm({ symbol: "", quantity: "", avgBuyPrice: "", stopLoss: "" });
       await loadHoldings();
     } catch (err) {
       setError(err.message);
@@ -90,6 +91,12 @@ export default function HoldingsTab() {
           value={form.avgBuyPrice}
           onChange={(e) => setForm({ ...form, avgBuyPrice: e.target.value })}
         />
+        <input
+          type="number"
+          placeholder="Stop loss (optional)"
+          value={form.stopLoss}
+          onChange={(e) => setForm({ ...form, stopLoss: e.target.value })}
+        />
         <button type="submit" disabled={submitting}>
           {submitting ? "Adding…" : "Add Holding"}
         </button>
@@ -108,6 +115,7 @@ export default function HoldingsTab() {
               <th>Symbol</th>
               <th>Qty</th>
               <th>Avg Buy</th>
+              <th>Stop Loss</th>
               <th>Current Price</th>
               <th>P&L</th>
               <th>Signal</th>
@@ -126,6 +134,7 @@ export default function HoldingsTab() {
                   </td>
                   <td>{h.quantity}</td>
                   <td>{h.avgBuyPrice != null ? formatPrice(h.avgBuyPrice) : "—"}</td>
+                  <td>{h.stopLoss != null ? formatPrice(h.stopLoss) : "—"}</td>
                   <td>{h.error ? "—" : formatPrice(h.price)}</td>
                   <td className={pnl == null ? "" : pnl >= 0 ? "positive" : "negative"}>
                     {pnl == null ? "—" : `${pnl > 0 ? "+" : ""}${pnl.toFixed(2)}%`}

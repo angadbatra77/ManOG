@@ -17,7 +17,7 @@ router.get("/holdings", async (_req, res) => {
 });
 
 router.post("/holdings", async (req, res) => {
-  const { symbol, quantity, avgBuyPrice } = req.body;
+  const { symbol, quantity, avgBuyPrice, stopLoss } = req.body;
   if (!symbol || !quantity) {
     return res.status(400).json({ error: "symbol and quantity are required" });
   }
@@ -34,7 +34,7 @@ router.post("/holdings", async (req, res) => {
     // symbol may still be valid even if the name lookup fails transiently
   }
 
-  const holding = await addHolding({ symbol, name, quantity, avgBuyPrice });
+  const holding = await addHolding({ symbol, name, quantity, avgBuyPrice, stopLoss });
   res.json(holding);
 });
 

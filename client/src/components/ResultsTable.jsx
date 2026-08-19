@@ -67,6 +67,7 @@ export default function ResultsTable({ results, updatedAt, variant = "buy" }) {
           <th>1W Change</th>
           <th>1M Change</th>
           <th>Signal Date</th>
+          <th>Stop Loss</th>
           <th>{variant === "sell" ? "In Sell Mode" : "In Criteria"}</th>
           <th>Chart</th>
         </tr>
@@ -87,6 +88,7 @@ export default function ResultsTable({ results, updatedAt, variant = "buy" }) {
             <td className={changeClass(row.change1w)}>{formatPct(row.change1w)}</td>
             <td className={changeClass(row.change1m)}>{formatPct(row.change1m)}</td>
             <td>{formatDate(row.signalDate)}</td>
+            <td>{formatPrice(row.stopLoss)}</td>
             <td>{formatWeeks(row.weeksInCriteria)}</td>
             <td>
               <button
