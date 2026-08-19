@@ -5,6 +5,7 @@ import pLimit from "p-limit";
 import { getNseUniverse } from "./nseUniverse.js";
 import { filterByMarketCap } from "./marketCap.js";
 import { computeIndicators } from "./indicators.js";
+import { computeStreak } from "./streak.js";
 import {
   RSI_BUY_LEVEL,
   WEEKLY_LOOKBACK_WEEKS,
@@ -91,27 +92,20 @@ function qualifiesAt(candles, indicators, idx) {
 // signalDate anchor to the week the streak began (the original breakout).
 function evaluateBuySignal(candles, indicators) {
   const lastIdx = candles.length - 1;
-  if (lastIdx < 1) return null;
-
-  if (!qualifiesAt(candles, indicators, lastIdx)) return null;
-
-  let streakStart = lastIdx;
-  while (
-    streakStart - 1 >= 0 &&
-    qualifiesAt(candles, indicators, streakStart - 1)
-  ) {
-    streakStart -= 1;
-  }
+  const streak = computeStreak(lastIdx, (idx) =>
+    qualifiesAt(candles, indicators, idx)
+  );
+  if (!streak) return null;
 
   return {
-    signalDate: candles[streakStart].date,
-    stopLoss: candles[streakStart].low,
-    weeksInCriteria: lastIdx - streakStart + 1,
+    signalDate: candles[streak.streakStart].date,
+    stopLoss: candles[streak.streakStart].low,
+    weeksInCriteria: streak.weeksInState,
     rsi: indicators.rsi[lastIdx],
   };
 }
 
-function pctChange(candles, weeksBack) {
+export function pctChange(candles, weeksBack) {
   const lastIdx = candles.length - 1;
   const refIdx = lastIdx - weeksBack;
   if (refIdx < 0) return null;
@@ -148,6 +142,7 @@ export async function runScreener({ limit, onProgress } = {}) {
                 symbol: stock.symbol.replace(/\.NS$/, ""),
                 name: stock.name,
                 price: candles[candles.length - 1].close,
+                marketCap: stock.marketCap,
                 change1w: pctChange(candles, 1),
                 change1m: pctChange(candles, 4),
                 stopLoss: signal.stopLoss,

@@ -18,7 +18,7 @@ function chunk(arr, size) {
   return chunks;
 }
 
-async function fetchQuotesForBatch(symbols) {
+export async function fetchQuotesForBatch(symbols) {
   try {
     const quotes = await yahooFinance.quote(symbols);
     return Array.isArray(quotes) ? quotes : [quotes];

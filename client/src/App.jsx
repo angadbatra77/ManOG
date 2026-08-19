@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import ResultsTable from "./components/ResultsTable.jsx";
 import HoldingsTab from "./components/HoldingsTab.jsx";
 import HistoryTab from "./components/HistoryTab.jsx";
+import SellSignalsTab from "./components/SellSignalsTab.jsx";
 import "./App.css";
 
 function ScreenerTab() {
@@ -112,11 +113,18 @@ export default function App() {
         >
           History
         </button>
+        <button
+          className={tab === "sell-signals" ? "tab active" : "tab"}
+          onClick={() => setTab("sell-signals")}
+        >
+          Sell Signals
+        </button>
       </nav>
 
       {tab === "screener" && <ScreenerTab />}
       {tab === "holdings" && <HoldingsTab />}
       {tab === "history" && <HistoryTab />}
+      {tab === "sell-signals" && <SellSignalsTab />}
     </div>
   );
 }

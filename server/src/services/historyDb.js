@@ -17,6 +17,7 @@ function toRow(scanDate, result) {
     symbol: result.symbol,
     name: result.name,
     price: result.price,
+    market_cap: result.marketCap,
     change_1w: result.change1w,
     change_1m: result.change1m,
     stop_loss: result.stopLoss,
@@ -30,6 +31,7 @@ function fromRow(row) {
     symbol: row.symbol,
     name: row.name,
     price: row.price,
+    marketCap: row.market_cap,
     change1w: row.change_1w,
     change1m: row.change_1m,
     stopLoss: row.stop_loss,
@@ -74,6 +76,22 @@ export async function getAvailableDates() {
     .order("scan_date", { ascending: false });
   if (error) throw new Error(error.message);
   return [...new Set((data ?? []).map((r) => r.scan_date))];
+}
+
+// The set of stocks that have ever appeared as a buy signal, across all
+// recorded dates — the universe the Sell Signals page tracks for an exit.
+export async function getAllHistoricalSymbols() {
+  if (!client) return [];
+  const { data, error } = await client
+    .from("screener_history")
+    .select("symbol, name");
+  if (error) throw new Error(error.message);
+
+  const bySymbol = new Map();
+  for (const row of data ?? []) {
+    if (!bySymbol.has(row.symbol)) bySymbol.set(row.symbol, row.name);
+  }
+  return [...bySymbol.entries()].map(([symbol, name]) => ({ symbol, name }));
 }
 
 export function isHistoryConfigured() {
