@@ -21,7 +21,14 @@ function openTradingView(symbol) {
 export default function HoldingsTab() {
   const [holdings, setHoldings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ symbol: "", quantity: "", avgBuyPrice: "", stopLoss: "" });
+  const [nseSymbols, setNseSymbols] = useState([]);
+  const [form, setForm] = useState({
+    symbol: "",
+    quantity: "",
+    avgBuyPrice: "",
+    stopLoss: "",
+    purchaseDate: "",
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -35,6 +42,9 @@ export default function HoldingsTab() {
 
   useEffect(() => {
     loadHoldings();
+    fetch("/api/nse-symbols")
+      .then((res) => res.json())
+      .then((data) => setNseSymbols(data.symbols ?? []));
   }, []);
 
   async function handleAdd(e) {
@@ -51,13 +61,20 @@ export default function HoldingsTab() {
           quantity: form.quantity,
           avgBuyPrice: form.avgBuyPrice,
           stopLoss: form.stopLoss,
+          purchaseDate: form.purchaseDate,
         }),
       });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "Failed to add holding");
       }
-      setForm({ symbol: "", quantity: "", avgBuyPrice: "", stopLoss: "" });
+      setForm({
+        symbol: "",
+        quantity: "",
+        avgBuyPrice: "",
+        stopLoss: "",
+        purchaseDate: "",
+      });
       await loadHoldings();
     } catch (err) {
       setError(err.message);
@@ -75,10 +92,18 @@ export default function HoldingsTab() {
     <div className="holdings">
       <form className="holding-form" onSubmit={handleAdd}>
         <input
-          placeholder="Symbol (e.g. TCS)"
+          list="nse-symbols-list"
+          placeholder="Company or symbol (e.g. TCS)"
           value={form.symbol}
           onChange={(e) => setForm({ ...form, symbol: e.target.value })}
         />
+        <datalist id="nse-symbols-list">
+          {nseSymbols.map((s) => (
+            <option key={s.symbol} value={s.symbol}>
+              {s.symbol} — {s.name}
+            </option>
+          ))}
+        </datalist>
         <input
           type="number"
           placeholder="Quantity"
@@ -87,7 +112,7 @@ export default function HoldingsTab() {
         />
         <input
           type="number"
-          placeholder="Avg buy price (optional)"
+          placeholder="Purchase price (optional)"
           value={form.avgBuyPrice}
           onChange={(e) => setForm({ ...form, avgBuyPrice: e.target.value })}
         />
@@ -96,6 +121,12 @@ export default function HoldingsTab() {
           placeholder="Stop loss (optional)"
           value={form.stopLoss}
           onChange={(e) => setForm({ ...form, stopLoss: e.target.value })}
+        />
+        <input
+          type="date"
+          title="Purchase date (defaults to today)"
+          value={form.purchaseDate}
+          onChange={(e) => setForm({ ...form, purchaseDate: e.target.value })}
         />
         <button type="submit" disabled={submitting}>
           {submitting ? "Adding…" : "Add Holding"}
@@ -116,6 +147,7 @@ export default function HoldingsTab() {
               <th>Qty</th>
               <th>Avg Buy</th>
               <th>Stop Loss</th>
+              <th>Trailing SL</th>
               <th>Current Price</th>
               <th>P&L</th>
               <th>Signal</th>
@@ -135,6 +167,9 @@ export default function HoldingsTab() {
                   <td>{h.quantity}</td>
                   <td>{h.avgBuyPrice != null ? formatPrice(h.avgBuyPrice) : "—"}</td>
                   <td>{h.stopLoss != null ? formatPrice(h.stopLoss) : "—"}</td>
+                  <td className={h.trailingStopLoss > h.stopLoss ? "positive" : ""}>
+                    {h.trailingStopLoss != null ? formatPrice(h.trailingStopLoss) : "—"}
+                  </td>
                   <td>{h.error ? "—" : formatPrice(h.price)}</td>
                   <td className={pnl == null ? "" : pnl >= 0 ? "positive" : "negative"}>
                     {pnl == null ? "—" : `${pnl > 0 ? "+" : ""}${pnl.toFixed(2)}%`}

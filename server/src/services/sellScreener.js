@@ -29,10 +29,28 @@ function evaluateSellSignal(candles, indicators) {
   return { signalDate: candles[lastIdx].date };
 }
 
+// Ratchets the stop loss up to the highest weekly low seen since purchase,
+// never down — mathematically equivalent to raising it week over week
+// whenever a new week's low exceeds the current trailing value.
+function computeTrailingStopLoss(candles, initialStopLoss, purchaseDate) {
+  if (initialStopLoss == null) return null;
+
+  let trailing = initialStopLoss;
+  const purchaseTime = purchaseDate ? new Date(purchaseDate).getTime() : null;
+  for (const candle of candles) {
+    if (purchaseTime != null && new Date(candle.date).getTime() < purchaseTime) {
+      continue;
+    }
+    if (candle.low > trailing) trailing = candle.low;
+  }
+  return trailing;
+}
+
 /**
- * holdings: array of {id, symbol, name, quantity, avgBuyPrice}
+ * holdings: array of {id, symbol, name, quantity, avgBuyPrice, stopLoss, purchaseDate}
  * Returns each holding annotated with live price, MACD bullish/bearish state,
- * and whether a sell signal (MACD crossed below signal this week) just fired.
+ * whether a sell signal (MACD crossed below signal this week) just fired, and
+ * the current trailing stop loss.
  */
 export async function evaluateHoldings(holdings) {
   const limiter = pLimit(HOLDINGS_CONCURRENCY);
@@ -64,7 +82,20 @@ export async function evaluateHoldings(holdings) {
             }
           }
 
-          return { ...holding, price, macdBullish, sellSignal, signalDate };
+          const trailingStopLoss = computeTrailingStopLoss(
+            candles,
+            holding.stopLoss,
+            holding.purchaseDate
+          );
+
+          return {
+            ...holding,
+            price,
+            macdBullish,
+            sellSignal,
+            signalDate,
+            trailingStopLoss,
+          };
         } catch {
           return {
             ...holding,
@@ -72,6 +103,7 @@ export async function evaluateHoldings(holdings) {
             macdBullish: null,
             sellSignal: false,
             signalDate: null,
+            trailingStopLoss: holding.stopLoss ?? null,
             error: true,
           };
         }

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { runScreener } from "../services/screener.js";
+import { getNseUniverse } from "../services/nseUniverse.js";
 import {
   readCache,
   writeCache,
@@ -19,6 +20,16 @@ const router = Router();
 router.get("/results", async (_req, res) => {
   const cache = await readCache();
   res.json(cache);
+});
+
+router.get("/nse-symbols", async (_req, res) => {
+  const symbols = await getNseUniverse();
+  res.json({
+    symbols: symbols.map((s) => ({
+      symbol: s.symbol.replace(/\.NS$/, ""),
+      name: s.name,
+    })),
+  });
 });
 
 router.get("/status", (_req, res) => {

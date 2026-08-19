@@ -19,7 +19,14 @@ async function writeHoldings(holdings) {
   await fs.writeFile(HOLDINGS_FILE, JSON.stringify(holdings, null, 2));
 }
 
-export async function addHolding({ symbol, name, quantity, avgBuyPrice, stopLoss }) {
+export async function addHolding({
+  symbol,
+  name,
+  quantity,
+  avgBuyPrice,
+  stopLoss,
+  purchaseDate,
+}) {
   const holdings = await readHoldings();
   const holding = {
     id: crypto.randomUUID(),
@@ -29,6 +36,9 @@ export async function addHolding({ symbol, name, quantity, avgBuyPrice, stopLoss
     avgBuyPrice:
       avgBuyPrice != null && avgBuyPrice !== "" ? Number(avgBuyPrice) : null,
     stopLoss: stopLoss != null && stopLoss !== "" ? Number(stopLoss) : null,
+    // used as the starting point for the trailing stop loss calculation;
+    // defaults to today if not given
+    purchaseDate: purchaseDate || new Date().toISOString().slice(0, 10),
   };
   holdings.push(holding);
   await writeHoldings(holdings);
