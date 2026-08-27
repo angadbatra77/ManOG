@@ -7,14 +7,14 @@ import { filterByMarketCap } from "./marketCap.js";
 import { computeIndicators } from "./indicators.js";
 import { computeStreak } from "./streak.js";
 import { fetchWeeklyCandlesUpstox } from "./upstoxData.js";
+import { getFirstSeenDate } from "./historyDb.js";
 import {
   RSI_BUY_LEVEL,
   WEEKLY_LOOKBACK_WEEKS,
   HISTORY_CONCURRENCY,
   DATA_DIR,
   GRACE_WEEKS,
-  MAX_SIGNAL_AGE_WEEKS,
-  MAX_SIGNAL_PRICE_DRIFT_PCT,
+  MAX_SIGNAL_AGE_DAYS,
 } from "../config.js";
 
 function weeksAgoDate(weeks) {
@@ -136,18 +136,17 @@ function evaluateBuySignal(candles, indicators) {
   };
 }
 
-// Bootstrapping filter: always show a fresh (this-week) signal. A signal
-// that's been sitting in criteria longer is only shown if it's both within
-// MAX_SIGNAL_AGE_WEEKS AND price hasn't drifted more than
-// MAX_SIGNAL_PRICE_DRIFT_PCT from the original breakout — otherwise buying
-// it now is a meaningfully different (later, more extended) bet than the
-// one the backtest actually validated.
-function isActionableNow(signal, currentPrice) {
-  if (signal.weeksInCriteria <= 1) return true;
-  if (signal.weeksInCriteria > MAX_SIGNAL_AGE_WEEKS) return false;
-  if (signal.priceAtSignal == null || currentPrice == null) return false;
-  const drift = Math.abs((currentPrice - signal.priceAtSignal) / signal.priceAtSignal) * 100;
-  return drift <= MAX_SIGNAL_PRICE_DRIFT_PCT;
+// Keep the homepage small and close to genuinely fresh: only show a signal
+// within MAX_SIGNAL_AGE_DAYS calendar days of its original breakout.
+// `effectiveDateStr` is the earliest date we actually observed this exact
+// signal (see getFirstSeenDate) when we have that history, since the raw
+// week-start signalDate only says which week a breakout happened in, not
+// which day — falling back to signalDate itself when we've never seen it.
+function isActionableNow(effectiveDateStr) {
+  const signalTime = new Date(effectiveDateStr).getTime();
+  if (Number.isNaN(signalTime)) return false;
+  const daysSinceSignal = (Date.now() - signalTime) / (24 * 60 * 60 * 1000);
+  return daysSinceSignal <= MAX_SIGNAL_AGE_DAYS;
 }
 
 // If you buy now instead of on the fresh breakout week, the grace period
@@ -191,21 +190,34 @@ export async function runScreener({ limit, onProgress } = {}) {
             const indicators = computeIndicators(candles);
             const signal = evaluateBuySignal(candles, indicators);
             const currentPrice = candles[candles.length - 1].close;
-            if (signal && isActionableNow(signal, currentPrice)) {
-              results.push({
-                symbol: stock.symbol.replace(/\.NS$/, ""),
-                name: stock.name,
-                price: currentPrice,
-                marketCap: stock.marketCap,
-                change1w: pctChange(candles, 1),
-                change1m: pctChange(candles, 4),
-                stopLoss: signal.stopLoss,
-                signalDate: signal.signalDate,
-                priceAtSignal: signal.priceAtSignal,
-                weeksInCriteria: signal.weeksInCriteria,
-                strengthPct: signal.strengthPct,
-                graceWeeksIfBoughtNow: remainingGraceWeeks(signal.weeksInCriteria),
-              });
+            if (signal) {
+              const plainSymbol = stock.symbol.replace(/\.NS$/, "");
+              let firstSeenDate = null;
+              try {
+                firstSeenDate = await getFirstSeenDate(plainSymbol, signal.signalDate);
+              } catch {
+                // history lookup failing shouldn't break the screener — just
+                // fall back to the week-start date below
+              }
+              const effectiveDateStr = firstSeenDate ?? signal.signalDate;
+
+              if (isActionableNow(effectiveDateStr)) {
+                results.push({
+                  symbol: plainSymbol,
+                  name: stock.name,
+                  price: currentPrice,
+                  marketCap: stock.marketCap,
+                  change1w: pctChange(candles, 1),
+                  change1m: pctChange(candles, 4),
+                  stopLoss: signal.stopLoss,
+                  signalDate: signal.signalDate,
+                  firstSeenDate: firstSeenDate,
+                  priceAtSignal: signal.priceAtSignal,
+                  weeksInCriteria: signal.weeksInCriteria,
+                  strengthPct: signal.strengthPct,
+                  graceWeeksIfBoughtNow: remainingGraceWeeks(signal.weeksInCriteria),
+                });
+              }
             }
           }
         } catch {

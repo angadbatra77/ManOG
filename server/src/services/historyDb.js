@@ -72,6 +72,27 @@ export async function getAvailableDates() {
   return [...new Set((data ?? []).map((r) => r.scan_date))];
 }
 
+// The earliest date our own refreshes actually observed this exact signal
+// (same symbol AND same signal_date, so a genuinely new breakout for a
+// symbol we've seen before doesn't inherit an old first-seen date). This is
+// a truer "day 0" for a freshness countdown than the signal's week-start
+// date, which only reflects which week a breakout happened in, not which
+// day — it just requires the screener to have actually been refreshed on
+// the days in between to have caught it.
+export async function getFirstSeenDate(symbol, signalDate) {
+  if (!client) return null;
+  const { data, error } = await client
+    .from("screener_history")
+    .select("scan_date")
+    .eq("symbol", symbol)
+    .eq("signal_date", signalDate)
+    .order("scan_date", { ascending: true })
+    .limit(1);
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) return null;
+  return data[0].scan_date;
+}
+
 // Most recent stop loss the screener itself recorded for this symbol, used
 // to sanity-check a manually-entered Holdings stop loss against reality.
 export async function getHistoricalStopLoss(symbol) {

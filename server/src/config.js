@@ -12,15 +12,15 @@ export const RSI_BUY_LEVEL = 60;
 export const GRACE_WEEKS = 12;
 
 // The backtest only ever bought a stock on the FRESH week its RSI crossed
-// above 60 — never one already sitting in criteria. Live, we bend that
-// slightly as a bootstrapping accommodation: a signal up to this many weeks
-// old is still shown if price hasn't drifted, since buying it now is close
-// to economically equivalent to having caught it fresh. Once the screener
-// is checked regularly this branch stops mattering — every future signal
-// gets caught in its first week — so treat this as scaffolding, not a
-// permanent strategy change.
-export const MAX_SIGNAL_AGE_WEEKS = 4;
-export const MAX_SIGNAL_PRICE_DRIFT_PCT = 5;
+// above 60 — never one already sitting in criteria. The homepage now only
+// shows a signal within this many calendar days of its original breakout,
+// to keep the list small and keep what you act on close to genuinely fresh.
+// Caveat: weekly candles are date-stamped at the START of their week
+// (Monday), not when the breakout was actually detected mid-week — so a
+// stock that broke out Thursday still carries that week's Monday date,
+// meaning it can read as "older" than the trading days that actually
+// passed. Tighten or loosen this if that edge behavior surprises you.
+export const MAX_SIGNAL_AGE_DAYS = 3;
 
 export const BB_PERIOD = 20;
 export const BB_STDDEV = 2;
