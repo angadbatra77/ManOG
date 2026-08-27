@@ -108,9 +108,13 @@ export default function ResultsTable({ results, updatedAt, variant = "buy" }) {
                   : undefined
               }
             >
-              {formatWeeks(row.weeksInCriteria)}
-              {variant === "buy" && row.weeksInCriteria > 1 && (
-                <span className="grace-hint"> ({row.graceWeeksIfBoughtNow}wk grace left)</span>
+              {variant === "buy" && row.graceWeeksIfBoughtNow != null ? (
+                <div className="criteria-cell">
+                  <span>{formatWeeks(row.weeksInCriteria)}</span>
+                  <span className="grace-hint">{row.graceWeeksIfBoughtNow}wk grace left</span>
+                </div>
+              ) : (
+                formatWeeks(row.weeksInCriteria)
               )}
             </td>
             <td>
