@@ -86,9 +86,11 @@ export default function ResultsTable({ results, updatedAt, variant = "buy" }) {
             onClick={() => openTradingView(row.symbol)}
           >
             {variant === "buy" && <td className="rank-cell">{row.rank ?? "—"}</td>}
-            <td className="symbol-cell">
-              <span className="symbol">{row.symbol}</span>
-              <span className="name">{row.name}</span>
+            <td>
+              <div className="symbol-cell">
+                <span className="symbol">{row.symbol}</span>
+                <span className="name">{row.name}</span>
+              </div>
             </td>
             <td>{formatPrice(row.price)}</td>
             <td>{formatMarketCap(row.marketCap)}</td>

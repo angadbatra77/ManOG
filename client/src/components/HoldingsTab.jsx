@@ -192,9 +192,11 @@ export default function HoldingsTab() {
               const pnl = pnlPercent(h);
               return (
                 <tr key={h.id}>
-                  <td className="symbol-cell">
-                    <span className="symbol">{h.symbol}</span>
-                    {h.name && <span className="name">{h.name}</span>}
+                  <td>
+                    <div className="symbol-cell">
+                      <span className="symbol">{h.symbol}</span>
+                      {h.name && <span className="name">{h.name}</span>}
+                    </div>
                   </td>
                   <td>{h.quantity}</td>
                   <td>{h.avgBuyPrice != null ? formatPrice(h.avgBuyPrice) : "—"}</td>
