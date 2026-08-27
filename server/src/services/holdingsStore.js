@@ -26,6 +26,7 @@ export async function addHolding({
   avgBuyPrice,
   stopLoss,
   purchaseDate,
+  signalDate,
 }) {
   const holdings = await readHoldings();
   const holding = {
@@ -36,9 +37,14 @@ export async function addHolding({
     avgBuyPrice:
       avgBuyPrice != null && avgBuyPrice !== "" ? Number(avgBuyPrice) : null,
     stopLoss: stopLoss != null && stopLoss !== "" ? Number(stopLoss) : null,
-    // used as the starting point for the trailing stop loss calculation;
-    // defaults to today if not given
+    // when you actually bought — used for P&L only
     purchaseDate: purchaseDate || new Date().toISOString().slice(0, 10),
+    // the ORIGINAL breakout week this stock entered our criteria, if known
+    // (e.g. copied from the screener). Grace period and the trailing stop
+    // ratchet anchor to this instead of purchaseDate when it's set, so a
+    // signal you bought a few weeks late doesn't get extra, unvalidated
+    // protection time. Falls back to purchaseDate if left blank.
+    signalDate: signalDate || purchaseDate || new Date().toISOString().slice(0, 10),
   };
   holdings.push(holding);
   await writeHoldings(holdings);

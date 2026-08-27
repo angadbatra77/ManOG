@@ -17,7 +17,7 @@ router.get("/holdings", async (_req, res) => {
 });
 
 router.post("/holdings", async (req, res) => {
-  const { symbol, quantity, avgBuyPrice, stopLoss, purchaseDate } = req.body;
+  const { symbol, quantity, avgBuyPrice, stopLoss, purchaseDate, signalDate } = req.body;
   if (!symbol || !quantity) {
     return res.status(400).json({ error: "symbol and quantity are required" });
   }
@@ -41,6 +41,7 @@ router.post("/holdings", async (req, res) => {
     avgBuyPrice,
     stopLoss,
     purchaseDate,
+    signalDate,
   });
   res.json(holding);
 });

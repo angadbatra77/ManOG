@@ -16,6 +16,21 @@ function sellReasonLabel(reason) {
   return null;
 }
 
+function watchReasonLabel(reason) {
+  if (reason === "stop_loss") return "would hit stop loss";
+  if (reason === "macd") return "MACD already bearish";
+  return null;
+}
+
+function formatGraceDate(value) {
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 function openTradingView(symbol) {
   window.open(
     `https://www.tradingview.com/chart/?symbol=NSE:${symbol}`,
@@ -34,6 +49,7 @@ export default function HoldingsTab() {
     avgBuyPrice: "",
     stopLoss: "",
     purchaseDate: "",
+    signalDate: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -68,6 +84,7 @@ export default function HoldingsTab() {
           avgBuyPrice: form.avgBuyPrice,
           stopLoss: form.stopLoss,
           purchaseDate: form.purchaseDate,
+          signalDate: form.signalDate,
         }),
       });
       if (!res.ok) {
@@ -80,6 +97,7 @@ export default function HoldingsTab() {
         avgBuyPrice: "",
         stopLoss: "",
         purchaseDate: "",
+        signalDate: "",
       });
       await loadHoldings();
     } catch (err) {
@@ -130,9 +148,16 @@ export default function HoldingsTab() {
         />
         <input
           type="date"
-          title="Purchase date (defaults to today)"
+          title="Purchase date (defaults to today) — used for P&L only"
           value={form.purchaseDate}
           onChange={(e) => setForm({ ...form, purchaseDate: e.target.value })}
+        />
+        <input
+          type="date"
+          title="Original signal date from the screener — if this stock had already been in criteria a few weeks when you bought, put that breakout date here so the grace period isn't extended past what's validated. Leave blank if you caught it fresh."
+          placeholder="Signal date"
+          value={form.signalDate}
+          onChange={(e) => setForm({ ...form, signalDate: e.target.value })}
         />
         <button type="submit" disabled={submitting}>
           {submitting ? "Adding…" : "Add Holding"}
@@ -156,6 +181,7 @@ export default function HoldingsTab() {
               <th>Trailing SL</th>
               <th>Current Price</th>
               <th>P&L</th>
+              <th>Grace Period</th>
               <th>Signal</th>
               <th>Chart</th>
               <th></th>
@@ -192,10 +218,31 @@ export default function HoldingsTab() {
                     {pnl == null ? "—" : `${pnl > 0 ? "+" : ""}${pnl.toFixed(2)}%`}
                   </td>
                   <td>
+                    {h.inGracePeriod ? (
+                      <span
+                        className="badge badge-neutral"
+                        title={`No sell signal can trigger until ${formatGraceDate(h.graceEndsDate)}. The trailing stop keeps ratcheting up underneath in the meantime.`}
+                      >
+                        🔒 {h.weeksRemainingInGrace} {h.weeksRemainingInGrace === 1 ? "wk" : "wks"} left
+                      </span>
+                    ) : (
+                      <span className="badge badge-hold" title="Grace period has ended — the stop loss and MACD checks are both live.">
+                        Active since {formatGraceDate(h.graceEndsDate)}
+                      </span>
+                    )}
+                  </td>
+                  <td>
                     {h.error ? (
                       <span className="badge badge-neutral">N/A</span>
                     ) : h.sellSignal ? (
                       <span className="badge badge-sell">{sellReasonLabel(h.sellReason)}</span>
+                    ) : h.wouldSellReason ? (
+                      <span
+                        className="badge badge-watch"
+                        title="Suppressed by the grace period — will become a real signal only if still true once grace ends."
+                      >
+                        👀 Watch: {watchReasonLabel(h.wouldSellReason)}
+                      </span>
                     ) : (
                       <span className="badge badge-hold">HOLD</span>
                     )}

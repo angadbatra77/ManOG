@@ -3,6 +3,7 @@ import ResultsTable from "./components/ResultsTable.jsx";
 import HoldingsTab from "./components/HoldingsTab.jsx";
 import HistoryTab from "./components/HistoryTab.jsx";
 import SellSignalsTab from "./components/SellSignalsTab.jsx";
+import UpstoxBanner from "./components/UpstoxBanner.jsx";
 import "./App.css";
 
 function ScreenerTab() {
@@ -93,6 +94,8 @@ export default function App() {
       <header>
         <h1>NSE Momentum Screener</h1>
       </header>
+
+      <UpstoxBanner />
 
       <nav className="tabs">
         <button

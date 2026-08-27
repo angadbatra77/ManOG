@@ -7,6 +7,7 @@ import { PORT } from "./config.js";
 import resultsRouter from "./routes/results.js";
 import holdingsRouter from "./routes/holdings.js";
 import sellSignalsRouter from "./routes/sellSignals.js";
+import upstoxRouter from "./routes/upstox.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -16,6 +17,7 @@ app.use(express.json());
 app.use("/api", resultsRouter);
 app.use("/api", holdingsRouter);
 app.use("/api", sellSignalsRouter);
+app.use("/api", upstoxRouter);
 
 // In production the client is built to ../../client/dist and served from
 // this same service, so the whole app runs as one Render web service.

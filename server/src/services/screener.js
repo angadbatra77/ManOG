@@ -6,11 +6,15 @@ import { getNseUniverse } from "./nseUniverse.js";
 import { filterByMarketCap } from "./marketCap.js";
 import { computeIndicators } from "./indicators.js";
 import { computeStreak } from "./streak.js";
+import { fetchWeeklyCandlesUpstox } from "./upstoxData.js";
 import {
   RSI_BUY_LEVEL,
   WEEKLY_LOOKBACK_WEEKS,
   HISTORY_CONCURRENCY,
   DATA_DIR,
+  GRACE_WEEKS,
+  MAX_SIGNAL_AGE_WEEKS,
+  MAX_SIGNAL_PRICE_DRIFT_PCT,
 } from "../config.js";
 
 function weeksAgoDate(weeks) {
@@ -45,6 +49,11 @@ export async function persistCandlesCache() {
   candlesCacheDirty = false;
 }
 
+// Upstox is the official, licensed feed and is tried first whenever it's
+// connected; Yahoo (unofficial, no SLA, has broken schema-validated mid
+// this project already) is the automatic fallback — this way a stale/
+// expired Upstox login this morning degrades the data quality slightly
+// instead of breaking the screener outright.
 export async function fetchWeeklyCandles(symbol) {
   const cache = await loadCandlesCache();
   const entry = cache[symbol];
@@ -52,21 +61,30 @@ export async function fetchWeeklyCandles(symbol) {
     return entry.candles;
   }
 
-  const result = await yahooFinance.chart(symbol, {
-    period1: weeksAgoDate(WEEKLY_LOOKBACK_WEEKS),
-    interval: "1wk",
-  });
-  const quotes = (result?.quotes ?? []).filter(
-    (q) => q.close != null && q.high != null && q.low != null
-  );
-  const candles = quotes.map((q) => ({
-    date: q.date,
-    open: q.open,
-    high: q.high,
-    low: q.low,
-    close: q.close,
-    volume: q.volume,
-  }));
+  let candles = null;
+  try {
+    candles = await fetchWeeklyCandlesUpstox(symbol, WEEKLY_LOOKBACK_WEEKS);
+  } catch {
+    candles = null; // fall through to Yahoo below
+  }
+
+  if (!candles) {
+    const result = await yahooFinance.chart(symbol, {
+      period1: weeksAgoDate(WEEKLY_LOOKBACK_WEEKS),
+      interval: "1wk",
+    });
+    const quotes = (result?.quotes ?? []).filter(
+      (q) => q.close != null && q.high != null && q.low != null
+    );
+    candles = quotes.map((q) => ({
+      date: q.date,
+      open: q.open,
+      high: q.high,
+      low: q.low,
+      close: q.close,
+      volume: q.volume,
+    }));
+  }
 
   cache[symbol] = { fetchedAt: Date.now(), candles };
   candlesCacheDirty = true;
@@ -97,12 +115,47 @@ function evaluateBuySignal(candles, indicators) {
   );
   if (!streak) return null;
 
+  // entry strength = how far the breakout week's close sat above the upper
+  // Bollinger Band, as a %. This is the same ranking used throughout the
+  // validated 20-year backtest to decide which signal gets priority when
+  // capital is limited — the strongest breakout, not just the most recent
+  // or the biggest 1-week mover, goes first.
+  const breakoutIdx = streak.streakStart;
+  const breakoutBB = indicators.bb[breakoutIdx];
+  const strengthPct = breakoutBB
+    ? ((candles[breakoutIdx].close - breakoutBB.upper) / breakoutBB.upper) * 100
+    : null;
+
   return {
-    signalDate: candles[streak.streakStart].date,
-    stopLoss: candles[streak.streakStart].low,
+    signalDate: candles[breakoutIdx].date,
+    stopLoss: candles[breakoutIdx].low,
+    priceAtSignal: candles[breakoutIdx].close,
     weeksInCriteria: streak.weeksInState,
     rsi: indicators.rsi[lastIdx],
+    strengthPct,
   };
+}
+
+// Bootstrapping filter: always show a fresh (this-week) signal. A signal
+// that's been sitting in criteria longer is only shown if it's both within
+// MAX_SIGNAL_AGE_WEEKS AND price hasn't drifted more than
+// MAX_SIGNAL_PRICE_DRIFT_PCT from the original breakout — otherwise buying
+// it now is a meaningfully different (later, more extended) bet than the
+// one the backtest actually validated.
+function isActionableNow(signal, currentPrice) {
+  if (signal.weeksInCriteria <= 1) return true;
+  if (signal.weeksInCriteria > MAX_SIGNAL_AGE_WEEKS) return false;
+  if (signal.priceAtSignal == null || currentPrice == null) return false;
+  const drift = Math.abs((currentPrice - signal.priceAtSignal) / signal.priceAtSignal) * 100;
+  return drift <= MAX_SIGNAL_PRICE_DRIFT_PCT;
+}
+
+// If you buy now instead of on the fresh breakout week, the grace period
+// should still end GRACE_WEEKS after the ORIGINAL signal, not GRACE_WEEKS
+// after today — otherwise a late entry gets extra, unvalidated protection
+// time it was never backtested with.
+function remainingGraceWeeks(weeksInCriteria) {
+  return Math.max(0, GRACE_WEEKS - (weeksInCriteria - 1));
 }
 
 export function pctChange(candles, weeksBack) {
@@ -137,17 +190,21 @@ export async function runScreener({ limit, onProgress } = {}) {
           if (candles.length > 30) {
             const indicators = computeIndicators(candles);
             const signal = evaluateBuySignal(candles, indicators);
-            if (signal) {
+            const currentPrice = candles[candles.length - 1].close;
+            if (signal && isActionableNow(signal, currentPrice)) {
               results.push({
                 symbol: stock.symbol.replace(/\.NS$/, ""),
                 name: stock.name,
-                price: candles[candles.length - 1].close,
+                price: currentPrice,
                 marketCap: stock.marketCap,
                 change1w: pctChange(candles, 1),
                 change1m: pctChange(candles, 4),
                 stopLoss: signal.stopLoss,
                 signalDate: signal.signalDate,
+                priceAtSignal: signal.priceAtSignal,
                 weeksInCriteria: signal.weeksInCriteria,
+                strengthPct: signal.strengthPct,
+                graceWeeksIfBoughtNow: remainingGraceWeeks(signal.weeksInCriteria),
               });
             }
           }
@@ -163,6 +220,11 @@ export async function runScreener({ limit, onProgress } = {}) {
 
   await persistCandlesCache();
 
-  results.sort((a, b) => (b.change1w ?? 0) - (a.change1w ?? 0));
+  // Order of preference: strongest breakout first (highest % above the
+  // upper Bollinger Band at signal) — matches the priority ranking used
+  // throughout the validated backtest, not just whichever stock happened
+  // to move the most this week.
+  results.sort((a, b) => (b.strengthPct ?? -Infinity) - (a.strengthPct ?? -Infinity));
+  results.forEach((r, i) => { r.rank = i + 1; });
   return results;
 }

@@ -61,9 +61,15 @@ export default function ResultsTable({ results, updatedAt, variant = "buy" }) {
     <table className="results-table">
       <thead>
         <tr>
+          {variant === "buy" && <th title="Order of preference — strongest breakout first">#</th>}
           <th>Symbol</th>
           <th>Current Price</th>
           <th>Market Cap</th>
+          {variant === "buy" && (
+            <th title="How far the breakout week's close sat above the upper Bollinger Band — this is what the rank is based on">
+              Entry Strength
+            </th>
+          )}
           <th>1W Change</th>
           <th>1M Change</th>
           <th>Signal Date</th>
@@ -79,17 +85,34 @@ export default function ResultsTable({ results, updatedAt, variant = "buy" }) {
             className="clickable-row"
             onClick={() => openTradingView(row.symbol)}
           >
+            {variant === "buy" && <td className="rank-cell">{row.rank ?? "—"}</td>}
             <td className="symbol-cell">
               <span className="symbol">{row.symbol}</span>
               <span className="name">{row.name}</span>
             </td>
             <td>{formatPrice(row.price)}</td>
             <td>{formatMarketCap(row.marketCap)}</td>
+            {variant === "buy" && (
+              <td className={changeClass(row.strengthPct)}>{formatPct(row.strengthPct)}</td>
+            )}
             <td className={changeClass(row.change1w)}>{formatPct(row.change1w)}</td>
             <td className={changeClass(row.change1m)}>{formatPct(row.change1m)}</td>
             <td>{formatDate(row.signalDate)}</td>
             <td>{formatPrice(row.stopLoss)}</td>
-            <td>{formatWeeks(row.weeksInCriteria)}</td>
+            <td
+              title={
+                variant === "buy" && row.graceWeeksIfBoughtNow != null
+                  ? row.weeksInCriteria > 1
+                    ? `Signal is ${row.weeksInCriteria - 1} week(s) old — if you buy now, only ${row.graceWeeksIfBoughtNow} week(s) of grace period remain (anchored to the original signal, not today)`
+                    : "Fresh signal — full 12-week grace period if bought now"
+                  : undefined
+              }
+            >
+              {formatWeeks(row.weeksInCriteria)}
+              {variant === "buy" && row.weeksInCriteria > 1 && (
+                <span className="grace-hint"> ({row.graceWeeksIfBoughtNow}wk grace left)</span>
+              )}
+            </td>
             <td>
               <button
                 className="chart-link"
