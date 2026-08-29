@@ -3,7 +3,6 @@ import ResultsTable from "./components/ResultsTable.jsx";
 import HoldingsTab from "./components/HoldingsTab.jsx";
 import HistoryTab from "./components/HistoryTab.jsx";
 import SellSignalsTab from "./components/SellSignalsTab.jsx";
-import UpstoxBanner from "./components/UpstoxBanner.jsx";
 import "./App.css";
 
 function ScreenerTab() {
@@ -95,7 +94,10 @@ export default function App() {
         <h1>NSE Momentum Screener</h1>
       </header>
 
-      <UpstoxBanner />
+      {/* Upstox banner hidden — Yahoo is the primary data source for actual
+          trading decisions (see the session notes on why). Upstox still
+          works as a silent fallback-order source in screener.js; this just
+          stops advertising the connect flow in the UI. */}
 
       <nav className="tabs">
         <button
