@@ -104,16 +104,34 @@ function qualifiesAt(candles, indicators, idx) {
   );
 }
 
+// The validated 20-year backtest only ever bought a stock the week RSI
+// SPECIFICALLY crossed above 60 (previous week's RSI was at or below 60) —
+// never a week where RSI was already elevated and it was the Bollinger Band
+// or MACD condition that flipped true. This is the exact gate the backtest
+// used; qualifiesAt alone (used below for the ongoing streak) is looser and
+// will match on any of the three conditions turning true.
+function isFreshRsiCross(candles, indicators, idx) {
+  if (idx < 1) return false;
+  const rsiPrev = indicators.rsi[idx - 1];
+  if (rsiPrev == null || rsiPrev > RSI_BUY_LEVEL) return false;
+  return qualifiesAt(candles, indicators, idx);
+}
+
 // A stock stays a "buy" candidate for as long as it keeps satisfying all three
 // conditions (RSI>60, close above upper BB, MACD bullish), not just the single
 // week it first crossed. weeksInCriteria counts that streak, and stopLoss/
-// signalDate anchor to the week the streak began (the original breakout).
+// signalDate anchor to the week the streak began (the original breakout) —
+// but only if that streak actually began with a genuine RSI cross. A streak
+// that started because BB or MACD flipped true while RSI was already above
+// 60 was never something the backtest would have bought, so it's excluded
+// entirely rather than shown as a signal with no validated basis.
 function evaluateBuySignal(candles, indicators) {
   const lastIdx = candles.length - 1;
   const streak = computeStreak(lastIdx, (idx) =>
     qualifiesAt(candles, indicators, idx)
   );
   if (!streak) return null;
+  if (!isFreshRsiCross(candles, indicators, streak.streakStart)) return null;
 
   // entry strength = how far the breakout week's close sat above the upper
   // Bollinger Band, as a %. This is the same ranking used throughout the
