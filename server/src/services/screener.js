@@ -3,7 +3,7 @@ import path from "node:path";
 import yahooFinance from "./yahooClient.js";
 import pLimit from "p-limit";
 import { getNseUniverse } from "./nseUniverse.js";
-import { filterByMarketCap } from "./marketCap.js";
+import { filterByMarketCap, getMarketCapFreshness } from "./marketCap.js";
 import { computeIndicators } from "./indicators.js";
 import { computeStreak } from "./streak.js";
 import { fetchWeeklyCandlesUpstox } from "./upstoxData.js";
@@ -197,10 +197,14 @@ export async function runScreener({ limit, onProgress } = {}) {
   const universe = await getNseUniverse();
   const capFiltered = await filterByMarketCap(universe);
   if (capFiltered.length === 0) {
+    // Only possible on a true cold start (no prior successful fetch to fall
+    // back to) — marketCap.js otherwise serves stale cached candidates
+    // instead of ever returning empty. Nothing to show, so this has to fail.
     throw new Error(
-      "Market cap filtering returned 0 candidates — likely a Yahoo Finance API failure, not a real market condition"
+      "Market cap filtering returned 0 candidates and no prior data exists to fall back to — likely a Yahoo Finance API failure, not a real market condition"
     );
   }
+  const marketCapFreshness = await getMarketCapFreshness();
   const candidates = limit ? capFiltered.slice(0, limit) : capFiltered;
 
   const limiter = pLimit(HISTORY_CONCURRENCY);
@@ -295,5 +299,5 @@ export async function runScreener({ limit, onProgress } = {}) {
     }
   }
 
-  return results;
+  return { results, stale: marketCapFreshness.stale, staleAsOf: marketCapFreshness.asOf };
 }

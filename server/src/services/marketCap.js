@@ -71,6 +71,14 @@ async function computeMarketCapCandidates(universe) {
   return passed;
 }
 
+async function readCandidatesFile() {
+  try {
+    return JSON.parse(await fs.readFile(CANDIDATES_FILE, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Given a list of {symbol, name} entries, returns only those whose market cap
  * exceeds MARKET_CAP_THRESHOLD, each annotated with current price + market cap.
@@ -78,27 +86,52 @@ async function computeMarketCapCandidates(universe) {
  * whole NSE universe) is expensive and market caps barely move hour to hour.
  */
 export async function filterByMarketCap(universe, { forceRefresh = false } = {}) {
-  if (!forceRefresh) {
-    try {
-      const cached = JSON.parse(await fs.readFile(CANDIDATES_FILE, "utf-8"));
-      const age = Date.now() - new Date(cached.fetchedAt).getTime();
-      if (Array.isArray(cached.candidates) && age < CANDIDATES_TTL_MS) {
-        return cached.candidates;
-      }
-    } catch {
-      // no cache yet, fall through to compute
+  const cached = await readCandidatesFile();
+
+  if (!forceRefresh && cached) {
+    const age = Date.now() - new Date(cached.fetchedAt).getTime();
+    if (Array.isArray(cached.candidates) && cached.candidates.length > 0 && age < CANDIDATES_TTL_MS) {
+      return cached.candidates;
     }
   }
 
   const candidates = await computeMarketCapCandidates(universe);
+
+  // NSE always has hundreds of companies above the market-cap threshold, so
+  // 0 candidates back is never a real market condition — it means Yahoo's
+  // quote endpoint failed outright (seen in practice: cloud-provider IPs
+  // like Render's get blocked/rate-limited with no warning). Rather than
+  // break the whole screener run, keep serving the last known-good
+  // candidate list and mark it stale so the UI can warn instead of lying
+  // about freshness.
+  if (candidates.length === 0 && cached && Array.isArray(cached.candidates) && cached.candidates.length > 0) {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    await fs.writeFile(
+      CANDIDATES_FILE,
+      JSON.stringify({ ...cached, stale: true }, null, 2)
+    );
+    return cached.candidates;
+  }
+
   await fs.mkdir(DATA_DIR, { recursive: true });
   await fs.writeFile(
     CANDIDATES_FILE,
     JSON.stringify(
-      { fetchedAt: new Date().toISOString(), candidates },
+      { fetchedAt: new Date().toISOString(), candidates, stale: false },
       null,
       2
     )
   );
   return candidates;
+}
+
+/**
+ * Reports whether the market-cap candidate list currently being served is
+ * stale (Yahoo failed on the most recent attempt, so we fell back to an
+ * older successful fetch) and, if so, how old that data actually is.
+ */
+export async function getMarketCapFreshness() {
+  const cached = await readCandidatesFile();
+  if (!cached) return { stale: false, asOf: null };
+  return { stale: !!cached.stale, asOf: cached.fetchedAt ?? null };
 }

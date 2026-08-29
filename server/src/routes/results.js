@@ -64,11 +64,16 @@ router.post("/refresh", async (req, res) => {
   res.json({ started: true });
 
   try {
-    const results = await runScreener({
+    const { results, stale, staleAsOf } = await runScreener({
       limit,
       onProgress: (done, total) => setProgress(done, total),
     });
-    await saveLatestResults(results);
+    await saveLatestResults(results, { stale, staleAsOf });
+    // Not a hard failure (we still have a usable candidate list from an
+    // earlier successful fetch), so this doesn't go through setError —
+    // the frontend reads the persisted stale/staleAsOf flag from
+    // /api/results directly, which stays correct across reloads and for
+    // anyone else who opens the app, unlike this in-memory status.
     // only record real, full-universe runs into date-wise history — not
     // partial test/dev runs triggered with a ?limit=
     if (!limit) {

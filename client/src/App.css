@@ -62,6 +62,15 @@ header h1 {
   font-size: 0.9rem;
 }
 
+.stale-banner {
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+  background: rgba(216, 168, 43, 0.12);
+  color: #d8a82b;
+}
+
 .empty-state {
   color: #888;
 }

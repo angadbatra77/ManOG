@@ -9,6 +9,8 @@ import "./App.css";
 function ScreenerTab() {
   const [results, setResults] = useState([]);
   const [updatedAt, setUpdatedAt] = useState(null);
+  const [stale, setStale] = useState(false);
+  const [staleAsOf, setStaleAsOf] = useState(null);
   const [status, setStatus] = useState({ refreshing: false, progress: { done: 0, total: 0 } });
   const [error, setError] = useState(null);
   const pollRef = useRef(null);
@@ -18,6 +20,8 @@ function ScreenerTab() {
     const data = await res.json();
     setResults(data.results ?? []);
     setUpdatedAt(data.updatedAt ?? null);
+    setStale(data.stale ?? false);
+    setStaleAsOf(data.staleAsOf ?? null);
   }
 
   async function loadStatus() {
@@ -80,6 +84,16 @@ function ScreenerTab() {
           </span>
         )}
       </div>
+
+      {stale && (
+        <p className="stale-banner">
+          ⚠️ Data may not be fresh — market cap data last refreshed{" "}
+          {staleAsOf ? new Date(staleAsOf).toLocaleString() : "at an earlier time"}. Today's
+          Yahoo Finance fetch failed (likely a temporary block/rate-limit), so this run kept
+          serving the last known-good candidate list instead of breaking. It will clear itself
+          automatically once a refresh succeeds.
+        </p>
+      )}
 
       {error && <p className="error">{error}</p>}
 
