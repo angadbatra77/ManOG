@@ -1,5 +1,3 @@
-$ cat "/c/Users/angad/OneDrive/Desktop/ManOG/.github/workflows/daily-refresh.yml"
-
 name: Daily screener refresh
 
 # Runs once a day, after NSE market close (3:30 PM IST), so the day's
