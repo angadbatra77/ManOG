@@ -1,0 +1,29 @@
+$ cat "/c/Users/angad/OneDrive/Desktop/ManOG/.github/workflows/daily-refresh.yml"
+
+name: Daily screener refresh
+
+# Runs once a day, after NSE market close (3:30 PM IST), so the day's
+# closing prices are locked in before the screener recomputes signals.
+# 12:30 UTC = 6:00 PM IST. Weekdays only - no point refreshing over a
+# weekend when nothing traded. This also doubles as a wake-up call for
+# Render's free tier, which spins the service down after 15 minutes of
+# no traffic - the request here brings it back up before running the
+# refresh.
+#
+# This matters beyond convenience: the homepage's 3-day freshness filter
+# tracks the earliest date it has ever recorded a signal, so it only gets
+# more accurate the more consistently the screener actually runs.
+on:
+  schedule:
+    - cron: "30 12 * * 1-5"
+  workflow_dispatch: {} # lets you trigger it manually from the Actions tab too
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger screener refresh
+        run: |
+          curl -sf -X POST "https://manog-screener.onrender.com/api/refresh" \
+            -w "\nHTTP %{http_code}\n" \
+            --retry 3 --retry-delay 30 --max-time 120
