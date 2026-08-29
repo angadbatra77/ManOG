@@ -22,6 +22,13 @@ export const GRACE_WEEKS = 12;
 // passed. Tighten or loosen this if that edge behavior surprises you.
 export const MAX_SIGNAL_AGE_DAYS = 3;
 
+// Validated position sizing: each trade sized at the smaller of
+// PCT_OF_EQUITY_PER_TRADE% of current equity or MAX_TRADE_VALUE — real
+// compounding early on, capped for realism once the corpus grows. Applied
+// only as an on-screen suggestion; the app never places orders itself.
+export const PCT_OF_EQUITY_PER_TRADE = 10;
+export const MAX_TRADE_VALUE = 2_000_000; // Rs 20,00,000
+
 export const BB_PERIOD = 20;
 export const BB_STDDEV = 2;
 

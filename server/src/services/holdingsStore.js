@@ -27,6 +27,7 @@ export async function addHolding({
   stopLoss,
   purchaseDate,
   signalDate,
+  strengthPct,
 }) {
   const holdings = await readHoldings();
   const holding = {
@@ -45,6 +46,11 @@ export async function addHolding({
     // signal you bought a few weeks late doesn't get extra, unvalidated
     // protection time. Falls back to purchaseDate if left blank.
     signalDate: signalDate || purchaseDate || new Date().toISOString().slice(0, 10),
+    // entry strength at signal time (% above upper BB), if known — the same
+    // ranking used to decide which holding is "weakest" when capital-sizing
+    // suggests reallocating into a stronger new signal. Optional; a manually
+    // entered holding with no known signal just won't show a strength.
+    strengthPct: strengthPct != null && strengthPct !== "" ? Number(strengthPct) : null,
   };
   holdings.push(holding);
   await writeHoldings(holdings);

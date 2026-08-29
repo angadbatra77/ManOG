@@ -8,6 +8,7 @@ import { computeIndicators } from "./indicators.js";
 import { computeStreak } from "./streak.js";
 import { fetchWeeklyCandlesUpstox } from "./upstoxData.js";
 import { getFirstSeenDate } from "./historyDb.js";
+import { computeCurrentEquity, findWeakestHolding } from "./equity.js";
 import {
   RSI_BUY_LEVEL,
   WEEKLY_LOOKBACK_WEEKS,
@@ -15,6 +16,8 @@ import {
   DATA_DIR,
   GRACE_WEEKS,
   MAX_SIGNAL_AGE_DAYS,
+  PCT_OF_EQUITY_PER_TRADE,
+  MAX_TRADE_VALUE,
 } from "../config.js";
 
 function weeksAgoDate(weeks) {
@@ -186,6 +189,11 @@ export function pctChange(candles, weeksBack) {
 }
 
 export async function runScreener({ limit, onProgress } = {}) {
+  // Computed once up front, not per-candidate — every signal is sized off
+  // the SAME snapshot of total equity, matching how the validated backtest
+  // sizes every trade off current total equity, not a shrinking remainder.
+  const equity = await computeCurrentEquity();
+
   const universe = await getNseUniverse();
   const capFiltered = await filterByMarketCap(universe);
   if (capFiltered.length === 0) {
@@ -256,5 +264,36 @@ export async function runScreener({ limit, onProgress } = {}) {
   // to move the most this week.
   results.sort((a, b) => (b.strengthPct ?? -Infinity) - (a.strengthPct ?? -Infinity));
   results.forEach((r, i) => { r.rank = i + 1; });
+
+  // Position-sizing suggestion, on-screen only — this never places an
+  // order or touches your holdings. Walks the ranked list in order,
+  // spending down a running copy of your available cash, so a strong
+  // signal further down the list correctly sees less cash left than one
+  // above it already "claimed" — same sequencing the backtest's priority
+  // reallocation used, just advisory here instead of automatic.
+  const weakestHolding = findWeakestHolding(equity.holdings);
+  let remainingCash = equity.availableCash;
+  for (const r of results) {
+    const suggestedAmount = Math.min(equity.totalEquity * (PCT_OF_EQUITY_PER_TRADE / 100), MAX_TRADE_VALUE);
+    const suggestedShares = r.price ? Math.floor(suggestedAmount / r.price) : 0;
+    const cost = suggestedShares * (r.price ?? 0);
+    const affordable = suggestedShares >= 1 && cost <= remainingCash;
+
+    r.suggestedShares = suggestedShares;
+    r.suggestedAmount = Math.round(suggestedAmount);
+    r.affordableNow = affordable;
+    r.reallocationSuggestion = null;
+
+    if (affordable) {
+      remainingCash -= cost;
+    } else if (weakestHolding && (r.strengthPct ?? -Infinity) > (weakestHolding.strengthPct ?? -Infinity)) {
+      r.reallocationSuggestion = {
+        symbol: weakestHolding.symbol,
+        strengthPct: weakestHolding.strengthPct,
+        marketValue: Math.round(weakestHolding.marketValue),
+      };
+    }
+  }
+
   return results;
 }

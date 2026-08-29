@@ -103,6 +103,49 @@ header h1 {
   white-space: nowrap;
 }
 
+.capital-settings {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.capital-settings label {
+  color: #aaa;
+}
+
+.capital-settings input {
+  width: 140px;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #111;
+  color: #eee;
+}
+
+.capital-settings button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.info-icon {
+  cursor: help;
+  color: #888;
+}
+
+.suggestion-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  white-space: nowrap;
+}
+
+.reallocation-note {
+  color: #d8a82b;
+  font-size: 0.78rem;
+}
+
 .grace-hint {
   color: #888;
   font-size: 0.78rem;

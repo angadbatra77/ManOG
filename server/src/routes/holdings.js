@@ -6,6 +6,7 @@ import {
   removeHolding,
 } from "../services/holdingsStore.js";
 import { evaluateHoldings } from "../services/sellScreener.js";
+import { getAvailableCash, setAvailableCash } from "../services/capitalStore.js";
 
 const router = Router();
 
@@ -17,7 +18,7 @@ router.get("/holdings", async (_req, res) => {
 });
 
 router.post("/holdings", async (req, res) => {
-  const { symbol, quantity, avgBuyPrice, stopLoss, purchaseDate, signalDate } = req.body;
+  const { symbol, quantity, avgBuyPrice, stopLoss, purchaseDate, signalDate, strengthPct } = req.body;
   if (!symbol || !quantity) {
     return res.status(400).json({ error: "symbol and quantity are required" });
   }
@@ -42,6 +43,7 @@ router.post("/holdings", async (req, res) => {
     stopLoss,
     purchaseDate,
     signalDate,
+    strengthPct,
   });
   res.json(holding);
 });
@@ -49,6 +51,19 @@ router.post("/holdings", async (req, res) => {
 router.delete("/holdings/:id", async (req, res) => {
   const holdings = await removeHolding(req.params.id);
   res.json({ holdings });
+});
+
+router.get("/capital", async (_req, res) => {
+  res.json({ availableCash: await getAvailableCash() });
+});
+
+router.post("/capital", async (req, res) => {
+  try {
+    const availableCash = await setAvailableCash(req.body.availableCash);
+    res.json({ availableCash });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 export default router;

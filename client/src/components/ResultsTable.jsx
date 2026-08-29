@@ -75,6 +75,11 @@ export default function ResultsTable({ results, updatedAt, variant = "buy" }) {
           <th>Signal Date</th>
           <th>Stop Loss</th>
           <th>{variant === "sell" ? "In Sell Mode" : "In Criteria"}</th>
+          {variant === "buy" && (
+            <th title="min(10% of current equity, ₹20L) — a sizing suggestion only, never an order">
+              Suggested Position
+            </th>
+          )}
           <th>Chart</th>
         </tr>
       </thead>
@@ -119,6 +124,24 @@ export default function ResultsTable({ results, updatedAt, variant = "buy" }) {
                 formatWeeks(row.weeksInCriteria)
               )}
             </td>
+            {variant === "buy" && (
+              <td>
+                <div className="suggestion-cell">
+                  <span className={row.affordableNow ? "" : "negative"}>
+                    {row.suggestedShares ?? "—"} shares (₹{formatPrice(row.suggestedAmount)})
+                  </span>
+                  {!row.affordableNow && row.reallocationSuggestion && (
+                    <span className="reallocation-note">
+                      Not enough cash — consider selling {row.reallocationSuggestion.symbol}{" "}
+                      ({row.reallocationSuggestion.strengthPct?.toFixed(1)}% strength, weaker than this)
+                    </span>
+                  )}
+                  {!row.affordableNow && !row.reallocationSuggestion && (
+                    <span className="reallocation-note">Not enough cash right now</span>
+                  )}
+                </div>
+              </td>
+            )}
             <td>
               <button
                 className="chart-link"

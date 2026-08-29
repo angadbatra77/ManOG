@@ -3,6 +3,7 @@ import ResultsTable from "./components/ResultsTable.jsx";
 import HoldingsTab from "./components/HoldingsTab.jsx";
 import HistoryTab from "./components/HistoryTab.jsx";
 import SellSignalsTab from "./components/SellSignalsTab.jsx";
+import CapitalSettings from "./components/CapitalSettings.jsx";
 import "./App.css";
 
 function ScreenerTab() {
@@ -61,6 +62,8 @@ function ScreenerTab() {
       <p className="subtitle">
         Weekly RSI(60) breakout + upper Bollinger Band close + bullish MACD, market cap &gt; ₹1000 Cr
       </p>
+
+      <CapitalSettings />
 
       <div className="controls">
         <button onClick={handleRefresh} disabled={status.refreshing}>
