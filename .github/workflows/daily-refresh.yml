@@ -38,8 +38,58 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger screener refresh
+      # A 200 response from POST /api/refresh only means the request was
+      # accepted - it says nothing about whether the actual refresh (which
+      # runs in the background) ever finished. This bit us for real: a
+      # manually-triggered run showed "success" here while the live site's
+      # data never actually updated. So this step doesn't stop at the
+      # trigger - it watches /api/status until the refresh genuinely
+      # completes with no error, and retries the whole attempt (up to 3
+      # times) if it doesn't. If all 3 genuinely fail, the job itself
+      # fails (exit 1) - an honest red X instead of a false green check.
+      - name: Trigger and verify screener refresh
         run: |
-          curl -sf -X POST "https://manog-screener.onrender.com/api/refresh" \
-            -w "\nHTTP %{http_code}\n" \
-            --retry 3 --retry-delay 30 --max-time 120
+          set -uo pipefail
+          URL="https://manog-screener.onrender.com"
+          MAX_ATTEMPTS=3
+          POLL_INTERVAL=10
+          MAX_POLLS=60  # ~10 minutes of polling per attempt
+
+          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+            echo "=== Attempt $attempt of $MAX_ATTEMPTS: triggering refresh ==="
+            curl -sf -X POST "$URL/api/refresh" \
+              -w "\nHTTP %{http_code}\n" \
+              --retry 3 --retry-delay 30 --max-time 120 || true
+
+            success=false
+            for poll in $(seq 1 "$MAX_POLLS"); do
+              sleep "$POLL_INTERVAL"
+              status=$(curl -sf "$URL/api/status" --max-time 30 2>/dev/null || echo '{}')
+              refreshing=$(echo "$status" | jq -r '.refreshing // "unknown"')
+              last_error=$(echo "$status" | jq -r '.lastError')
+              echo "poll $poll/$MAX_POLLS: refreshing=$refreshing lastError=$last_error"
+
+              if [ "$refreshing" = "false" ]; then
+                if [ "$last_error" = "null" ]; then
+                  echo "Refresh completed successfully."
+                  success=true
+                else
+                  echo "Refresh finished but reported an error: $last_error"
+                fi
+                break
+              fi
+            done
+
+            if [ "$success" = "true" ]; then
+              exit 0
+            fi
+
+            echo "Attempt $attempt did not complete successfully."
+            if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
+              echo "Waiting before retrying..."
+              sleep 60
+            fi
+          done
+
+          echo "All $MAX_ATTEMPTS attempts failed to complete a verified successful refresh."
+          exit 1
