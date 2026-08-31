@@ -11,7 +11,7 @@ import { getFirstSeenDate } from "./historyDb.js";
 import { getOrFetchSector } from "./sectorDb.js";
 import { fetchAndStoreIndexQuotes } from "./indices.js";
 import { computeCurrentEquity, findWeakestHolding } from "./equity.js";
-import { groupIntoWeeks, excludeUnsettledToday, toISTDateString } from "./weeklyResample.js";
+import { groupIntoWeeks, keepOnlyCompletedWeeks, toISTDateString } from "./weeklyResample.js";
 import {
   getLatestStoredDate,
   getStoredDailyCandles,
@@ -37,9 +37,9 @@ function daysAgoDate(days) {
 }
 
 const CANDLES_CACHE_FILE = path.join(DATA_DIR, "weekly-candles-cache.json");
-// the current (still-forming) week's candle changes as the week progresses,
-// so this trades a bit of intra-week staleness for skipping ~1400 network
-// round-trips on repeat refreshes within the window
+// The underlying answer only actually changes once a week now
+// (keepOnlyCompletedWeeks), so this TTL just avoids redundant Supabase
+// round-trips on repeat refresh clicks within the window, not staleness.
 const CANDLES_TTL_MS = 45 * 60 * 1000;
 
 let candlesCache = null;
@@ -101,15 +101,15 @@ function daysSince(dateStr) {
 
 // Weekly candles are built here from DAILY candles, not requested directly
 // from either vendor's own "weekly" interval. This matches exactly how the
-// validated 20-year backtest constructs weeks (see weeklyResample.js) —
-// and, as a direct side effect, fixes a real live-only bug: a vendor's
-// native "current week" candle keeps updating with the live/intraday price
-// while the market is open, so a stock could satisfy the buy criteria at
-// 11am and no longer satisfy it at 11:30am, purely from ordinary intraday
-// noise. Building the week ourselves lets us drop today's own candle until
-// NSE actually closes (excludeUnsettledToday), so the current week's candle
-// is only ever built from fully settled days — a signal is now a stable
-// daily fact, not something that can flicker minute to minute.
+// validated 20-year backtest constructs weeks (see weeklyResample.js).
+//
+// The app runs on a weekly cadence: keepOnlyCompletedWeeks always drops
+// whatever week is still in progress, so every refresh — whenever it
+// actually runs — resolves to the same answer, the most recently FULLY
+// COMPLETED week. That's what makes "a fresh list every Monday, the same
+// list all week" an actual guarantee rather than a scheduling convention:
+// even a manual refresh on a Wednesday still shows last week's complete
+// data, never a partial mid-week shape.
 //
 // The daily history itself is persisted in Supabase (daily_candles), not
 // re-downloaded wholesale on every refresh. A symbol we've already seen
@@ -160,8 +160,8 @@ export async function fetchWeeklyCandles(symbol) {
     // the network (a short window if this symbol already had history)
   }
 
-  const settledDaily = excludeUnsettledToday(daily);
-  const candles = groupIntoWeeks(settledDaily).map((w) => w.candle);
+  const completedDaily = keepOnlyCompletedWeeks(daily);
+  const candles = groupIntoWeeks(completedDaily).map((w) => w.candle);
 
   cache[symbol] = { fetchedAt: Date.now(), candles };
   candlesCacheDirty = true;

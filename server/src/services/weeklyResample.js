@@ -53,29 +53,33 @@ export function todayIST() {
   return toISTDateString();
 }
 
-// NSE closes 3:30 PM IST. Before that, today's daily candle is still live —
-// its close keeps moving with the market, which is exactly what caused a
-// signal to appear and vanish within the same day when refreshed mid-session.
-// The backtest never faced this: every day it ever looked at was already
-// over. This is the live app's equivalent of "already over" for today.
-export function isTodaysSessionSettled(now = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-GB", {
+// Saturday or Sunday IST — NSE's Mon-Fri trading week is necessarily over
+// by then, even though the ISO week (Mon-anchored) doesn't roll over until
+// the following Monday.
+export function isWeekendIST(now = new Date()) {
+  const weekday = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Kolkata",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).formatToParts(now);
-  const hour = Number(parts.find((p) => p.type === "hour").value);
-  const minute = Number(parts.find((p) => p.type === "minute").value);
-  return hour > 15 || (hour === 15 && minute >= 30);
+    weekday: "short",
+  }).format(now);
+  return weekday === "Sat" || weekday === "Sun";
 }
 
-// Drops today's own daily candle from the series whenever NSE hasn't closed
-// yet, so the current week's candle is only ever built from fully settled
-// days — never a live, still-moving intraday price. Once the market closes
-// for the day, today's candle is settled and gets included like any other.
-export function excludeUnsettledToday(dailyCandles) {
-  if (isTodaysSessionSettled()) return dailyCandles;
-  const today = todayIST();
-  return dailyCandles.filter((c) => toISTDateString(c.date) !== today);
+// The app now runs on a weekly cadence: a fresh list gets generated once,
+// and the SAME list should keep showing all week until the next refresh —
+// never a partially-formed "current week" that quietly changes shape as
+// more trading days land in it. This drops the entire in-progress week
+// (not just today) whenever it could still gain more trading days, so
+// every refresh — whenever it happens to run — resolves to the same
+// answer: the most recently FULLY COMPLETED week, exactly what the
+// validated backtest itself only ever evaluated.
+//
+// Monday-Friday: this week isn't done yet (more days could still land in
+// it today or later this week) — drop it entirely, fall back to last
+// week's complete candle.
+// Saturday/Sunday: the week that just ended has no more trading days
+// coming — safe to include it as-is.
+export function keepOnlyCompletedWeeks(dailyCandles, now = new Date()) {
+  if (isWeekendIST(now)) return dailyCandles;
+  const currentWeekStart = isoWeekStart(now);
+  return dailyCandles.filter((c) => isoWeekStart(new Date(c.date)) !== currentWeekStart);
 }
