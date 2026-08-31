@@ -1,20 +1,37 @@
 name: Weekly screener refresh
 
-# Runs once a week, Sunday night IST - well clear of NSE trading hours in
-# either direction, so there's zero risk of the job running late and
-# bumping into Monday's market open. The app evaluates the most recently
-# FULLY COMPLETED week (keepOnlyCompletedWeeks in weeklyResample.js); any
-# point during Saturday/Sunday IST already sees last week's trading as
-# finished, so Sunday night resolves to the same complete week Monday
-# morning would have, with a wider safety margin.
-# 15:30 UTC = 9:00 PM IST.
+# Runs three times, all clustered right before Monday's market open:
+# Sunday 9 PM IST, Monday 3 AM IST, Monday 4 AM IST. Three independent
+# attempts mean Yahoo blocking Render's IP (an unofficial API, no SLA,
+# has happened repeatedly) during one attempt doesn't cost the whole
+# window - the next one a few hours later gets its own shot.
+#
+# Deliberately NOT a Saturday-night run: NSE occasionally holds special
+# sessions on what would otherwise be a non-trading day (e.g. Diwali
+# Muhurat trading), so "is Saturday actually a trading day this week" can
+# be ambiguous. Checking from MONDAY sidesteps that entirely - the app
+# evaluates the most recently FULLY COMPLETED week (keepOnlyCompletedWeeks
+# in weeklyResample.js) by comparing calendar weeks, not by guessing
+# whether a given weekend day traded. Once we're checking from Monday,
+# we've unambiguously rolled into a new week, so whatever happened last
+# week - a normal Mon-Fri, or a Saturday Muhurat session, or anything
+# else - is automatically settled and correctly included, no special-
+# casing needed.
+#
+# All three times land on SUNDAY in UTC, not Monday - IST is 5:30 ahead,
+# so "Monday 3/4 AM IST" is still Sunday night UTC. Verified directly:
+#   Sun 9:00 PM IST -> 2026-09-06T15:30:00Z (cron: 30 15 * * 0)
+#   Mon 3:00 AM IST -> 2026-09-06T21:30:00Z (cron: 30 21 * * 0)
+#   Mon 4:00 AM IST -> 2026-09-06T22:30:00Z (cron: 30 22 * * 0)
 #
 # This also doubles as a wake-up call for Render's free tier, which spins
 # the service down after 15 minutes of no traffic - the request here
 # brings it back up before running the refresh.
 on:
   schedule:
-    - cron: "30 15 * * 0"
+    - cron: "30 15 * * 0" # Sunday 9 PM IST
+    - cron: "30 21 * * 0" # Monday 3 AM IST
+    - cron: "30 22 * * 0" # Monday 4 AM IST
   workflow_dispatch: {} # lets you trigger it manually from the Actions tab too
 
 jobs:
