@@ -1,4 +1,5 @@
 import yahooFinance from "./yahooClient.js";
+import { supabase as client } from "./supabaseClient.js";
 
 // Broad + sectoral index tickers, confirmed working directly against Yahoo
 // before wiring this up (see session notes) — Yahoo's index symbols don't
@@ -22,8 +23,7 @@ const INDEX_LIST = [
   { symbol: "^CNXINFRA", label: "NIFTY INFRA" },
 ];
 
-const CACHE_TTL_MS = 60 * 1000; // "live" without hammering Yahoo on every poll
-let cache = { fetchedAt: 0, quotes: [] };
+const TABLE = "index_quotes";
 
 async function fetchOne(symbol, label) {
   try {
@@ -39,19 +39,14 @@ async function fetchOne(symbol, label) {
   }
 }
 
-export async function getIndexQuotes() {
-  if (Date.now() - cache.fetchedAt < CACHE_TTL_MS && cache.quotes.length > 0) {
-    return cache.quotes;
-  }
-
-  let quotes;
+async function fetchFromYahoo() {
   try {
     // One batch call for all of them — cheap, same pattern as marketCap.js.
     const symbols = INDEX_LIST.map((i) => i.symbol);
     const results = await yahooFinance.quote(symbols);
     const arr = Array.isArray(results) ? results : [results];
     const bySymbol = new Map(arr.map((q) => [q.symbol, q]));
-    quotes = INDEX_LIST.map(({ symbol, label }) => {
+    return INDEX_LIST.map(({ symbol, label }) => {
       const q = bySymbol.get(symbol);
       return {
         symbol,
@@ -63,10 +58,62 @@ export async function getIndexQuotes() {
   } catch {
     // Batch call failed outright (seen in practice — a transient Yahoo
     // hiccup can fail the whole batch) — fall back to one request per
-    // index so a single bad symbol/blip doesn't blank out the whole strip.
-    quotes = await Promise.all(INDEX_LIST.map((i) => fetchOne(i.symbol, i.label)));
+    // index so a single bad symbol/blip doesn't blank out the whole set.
+    return Promise.all(INDEX_LIST.map((i) => fetchOne(i.symbol, i.label)));
+  }
+}
+
+// Called once per screener refresh (daily in practice) — fetches live
+// quotes and persists them to Supabase. If Yahoo fails entirely (all
+// prices null), the stored rows are deliberately left untouched rather
+// than overwritten with nulls: a live index price is only meaningful as
+// "as of the last successful refresh," never as a fabricated blank, so a
+// failed fetch just means today's refresh didn't update it, same as any
+// other Yahoo-dependent step in a refresh.
+export async function fetchAndStoreIndexQuotes() {
+  const quotes = await fetchFromYahoo();
+  const hasAnyData = quotes.some((q) => q.price != null);
+  if (!client || !hasAnyData) return;
+
+  const rows = quotes
+    .filter((q) => q.price != null)
+    .map((q) => ({
+      symbol: q.symbol,
+      label: q.label,
+      price: q.price,
+      change_percent: q.changePercent,
+      updated_at: new Date().toISOString(),
+    }));
+  if (rows.length === 0) return;
+
+  const { error } = await client.from(TABLE).upsert(rows, { onConflict: "symbol" });
+  if (error) throw new Error(error.message);
+}
+
+// What the app actually serves to the browser — always a DB read, never a
+// live Yahoo call, so a page view never fails or blocks on Yahoo being
+// down. Freshness is whatever the last successful refresh managed to
+// store, same as every other number on the Screener.
+export async function getStoredIndexQuotes() {
+  if (!client) {
+    return { quotes: INDEX_LIST.map((i) => ({ ...i, price: null, changePercent: null })), updatedAt: null };
   }
 
-  cache = { fetchedAt: Date.now(), quotes };
-  return quotes;
+  const { data, error } = await client.from(TABLE).select("symbol, label, price, change_percent, updated_at");
+  if (error) throw new Error(error.message);
+
+  const bySymbol = new Map((data ?? []).map((r) => [r.symbol, r]));
+  let updatedAt = null;
+  const quotes = INDEX_LIST.map(({ symbol, label }) => {
+    const row = bySymbol.get(symbol);
+    if (row?.updated_at && (!updatedAt || row.updated_at > updatedAt)) updatedAt = row.updated_at;
+    return {
+      symbol,
+      label,
+      price: row?.price ?? null,
+      changePercent: row?.change_percent ?? null,
+    };
+  });
+
+  return { quotes, updatedAt };
 }

@@ -22,12 +22,21 @@ header h1 {
   font-size: 1.5rem;
 }
 
+.indices-section {
+  margin-bottom: 1.5rem;
+}
+
 /* Fixed 5x3 grid — exactly 15 indices, always fully visible, no scrolling. */
 .indices-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 0.6rem;
-  margin-bottom: 1.5rem;
+}
+
+.indices-updated-at {
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+  color: #888;
 }
 
 .index-cell {

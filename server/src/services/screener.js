@@ -9,6 +9,7 @@ import { computeStreak } from "./streak.js";
 import { fetchDailyCandlesUpstox } from "./upstoxData.js";
 import { getFirstSeenDate } from "./historyDb.js";
 import { getOrFetchSector } from "./sectorDb.js";
+import { fetchAndStoreIndexQuotes } from "./indices.js";
 import { computeCurrentEquity, findWeakestHolding } from "./equity.js";
 import { groupIntoWeeks, excludeUnsettledToday, toISTDateString } from "./weeklyResample.js";
 import {
@@ -262,6 +263,15 @@ export function pctChange(candles, weeksBack) {
 }
 
 export async function runScreener({ limit, onProgress } = {}) {
+  // Refreshes the index grid's stored quotes once per screener run rather
+  // than the browser hitting Yahoo live on every page view — see
+  // indices.js. Never allowed to break the actual screener run: a Yahoo
+  // hiccup here just means the index grid keeps showing its last stored
+  // values instead of failing the whole refresh.
+  fetchAndStoreIndexQuotes().catch((err) =>
+    console.error("Failed to refresh index quotes:", err.message)
+  );
+
   // Computed once up front, not per-candidate — every signal is sized off
   // the SAME snapshot of total equity, matching how the validated backtest
   // sizes every trade off current total equity, not a shrinking remainder.

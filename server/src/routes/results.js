@@ -16,7 +16,7 @@ import {
   saveLatestResults,
   getLatestResults,
 } from "../services/latestResultsDb.js";
-import { getIndexQuotes } from "../services/indices.js";
+import { getStoredIndexQuotes } from "../services/indices.js";
 
 const router = Router();
 
@@ -41,8 +41,8 @@ router.get("/status", (_req, res) => {
 
 router.get("/indices", async (_req, res) => {
   try {
-    const quotes = await getIndexQuotes();
-    res.json({ quotes });
+    const { quotes, updatedAt } = await getStoredIndexQuotes();
+    res.json({ quotes, updatedAt });
   } catch (err) {
     res.status(500).json({ error: err.message || "Failed to fetch indices" });
   }
