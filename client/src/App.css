@@ -11,7 +11,7 @@ body {
 }
 
 .app {
-  max-width: 960px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 2rem 1.5rem 4rem;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -25,17 +25,23 @@ header h1 {
 .app-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 0.75rem 1.5rem;
+  gap: 0.5rem 1.5rem;
+  margin-bottom: 1.25rem;
 }
 
+/* Single scrollable row instead of wrapping into a multi-row block — keeps
+   this a compact, secondary strip of market context rather than something
+   that competes with the page title for attention. */
 .indices-ticker {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  flex-wrap: nowrap;
   gap: 0.4rem;
-  max-width: 560px;
+  max-width: 60vw;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+  scrollbar-width: thin;
 }
 
 .index-pill {
@@ -47,6 +53,7 @@ header h1 {
   background: rgba(136, 136, 136, 0.1);
   font-size: 0.72rem;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .index-label {
@@ -64,16 +71,27 @@ header h1 {
 }
 
 .subtitle {
-  margin: 0 0 1.5rem;
+  margin: 0 0 1rem;
   color: #888;
   font-size: 0.9rem;
+}
+
+/* Capital settings + refresh controls read as one toolbar, not two
+   unrelated stacked blocks. */
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #2a2a2a;
 }
 
 .controls {
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin-bottom: 1rem;
   flex-wrap: wrap;
 }
 
@@ -116,8 +134,15 @@ header h1 {
   color: #888;
 }
 
+/* Safety net so a wide table scrolls within itself on a narrow window
+   instead of ever overflowing/clipping the page. */
+.table-scroll {
+  overflow-x: auto;
+}
+
 .results-table {
   width: 100%;
+  min-width: 900px;
   border-collapse: collapse;
   font-size: 0.92rem;
 }
@@ -146,18 +171,23 @@ header h1 {
   background: rgba(74, 125, 255, 0.08);
 }
 
-.criteria-cell {
+.criteria-cell,
+.stacked-cell {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
   white-space: nowrap;
 }
 
+.stacked-sub {
+  color: #888;
+  font-size: 0.78rem;
+}
+
 .capital-settings {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  margin-bottom: 1rem;
   font-size: 0.9rem;
 }
 
@@ -224,6 +254,16 @@ header h1 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.sector-tag {
+  align-self: flex-start;
+  margin-top: 0.2rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+  background: rgba(136, 136, 136, 0.15);
+  color: #999;
+  font-size: 0.68rem;
 }
 
 .positive {

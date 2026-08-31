@@ -58,116 +58,127 @@ export default function ResultsTable({ results, updatedAt, variant = "buy" }) {
   }
 
   return (
-    <table className="results-table">
-      <thead>
-        <tr>
-          {variant === "buy" && <th title="Order of preference — strongest breakout first">#</th>}
-          <th>Symbol</th>
-          {variant === "buy" && <th>Sector</th>}
-          <th>Current Price</th>
-          <th>Market Cap</th>
-          {variant === "buy" && (
-            <th title="How far the breakout week's close sat above the upper Bollinger Band — this is what the rank is based on">
-              Entry Strength
-            </th>
-          )}
-          <th>1W Change</th>
-          <th>1M Change</th>
-          {variant === "buy" && (
-            <th title="Price change from the original breakout close to now — what your return would be if you'd bought the week it first entered criteria">
-              Since Entry
-            </th>
-          )}
-          <th>Signal Date</th>
-          <th>Stop Loss</th>
-          <th>{variant === "sell" ? "In Sell Mode" : "In Criteria"}</th>
-          {variant === "buy" && (
-            <th title="min(10% of current equity, ₹20L) — a sizing suggestion only, never an order">
-              Suggested Position
-            </th>
-          )}
-          <th>Chart</th>
-        </tr>
-      </thead>
-      <tbody>
-        {results.map((row) => (
-          <tr
-            key={row.symbol}
-            className="clickable-row"
-            onClick={() => openTradingView(row.symbol)}
-          >
-            {variant === "buy" && <td className="rank-cell">{row.rank ?? "—"}</td>}
-            <td>
-              <div className="symbol-cell">
-                <span className="symbol">{row.symbol}</span>
-                <span className="name">{row.name}</span>
-              </div>
-            </td>
-            {variant === "buy" && <td>{row.sector ?? "—"}</td>}
-            <td>{formatPrice(row.price)}</td>
-            <td>{formatMarketCap(row.marketCap)}</td>
+    <div className="table-scroll">
+      <table className="results-table">
+        <thead>
+          <tr>
+            {variant === "buy" && <th title="Order of preference — strongest breakout first">#</th>}
+            <th>Symbol</th>
+            <th>Price</th>
+            <th>Market Cap</th>
             {variant === "buy" && (
-              <td className={changeClass(row.strengthPct)}>{formatPct(row.strengthPct)}</td>
+              <th title="How far the breakout week's close sat above the upper Bollinger Band — this is what the rank is based on">
+                Entry Strength
+              </th>
             )}
-            <td className={changeClass(row.change1w)}>{formatPct(row.change1w)}</td>
-            <td className={changeClass(row.change1m)}>{formatPct(row.change1m)}</td>
+            <th title="1-week change over 1-month change">Change (1W / 1M)</th>
             {variant === "buy" && (
-              <td className={changeClass(row.changeSinceEntry)}>
-                {formatPct(row.changeSinceEntry)}
-              </td>
+              <th title="Price change from the original breakout close to now — what your return would be if you'd bought the week it first entered criteria">
+                Since Entry
+              </th>
             )}
-            <td>{formatDate(row.signalDate)}</td>
-            <td>{formatPrice(row.stopLoss)}</td>
-            <td
-              title={
-                variant === "buy" && row.graceWeeksIfBoughtNow != null
-                  ? row.weeksInCriteria > 1
-                    ? `Signal is ${row.weeksInCriteria - 1} week(s) old — if you buy now, only ${row.graceWeeksIfBoughtNow} week(s) of grace period remain (anchored to the original signal, not today)`
-                    : "Fresh signal — full 12-week grace period if bought now"
-                  : undefined
-              }
-            >
-              {variant === "buy" && row.graceWeeksIfBoughtNow != null ? (
-                <div className="criteria-cell">
-                  <span>{formatWeeks(row.weeksInCriteria)}</span>
-                  <span className="grace-hint">{row.graceWeeksIfBoughtNow}wk grace left</span>
-                </div>
-              ) : (
-                formatWeeks(row.weeksInCriteria)
-              )}
-            </td>
+            <th title="Signal date, with stop loss below it">Signal / Stop Loss</th>
+            <th>{variant === "sell" ? "In Sell Mode" : "In Criteria"}</th>
             {variant === "buy" && (
-              <td>
-                <div className="suggestion-cell">
-                  <span className={row.affordableNow ? "" : "negative"}>
-                    {row.suggestedShares ?? "—"} shares (₹{formatPrice(row.suggestedAmount)})
-                  </span>
-                  {!row.affordableNow && row.reallocationSuggestion && (
-                    <span className="reallocation-note">
-                      Not enough cash — consider selling {row.reallocationSuggestion.symbol}{" "}
-                      ({row.reallocationSuggestion.strengthPct?.toFixed(1)}% strength, weaker than this)
-                    </span>
-                  )}
-                  {!row.affordableNow && !row.reallocationSuggestion && (
-                    <span className="reallocation-note">Not enough cash right now</span>
-                  )}
-                </div>
-              </td>
+              <th title="min(10% of current equity, ₹20L) — a sizing suggestion only, never an order">
+                Suggested Position
+              </th>
             )}
-            <td>
-              <button
-                className="chart-link"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openTradingView(row.symbol);
-                }}
-              >
-                View Chart ↗
-              </button>
-            </td>
+            <th></th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {results.map((row) => (
+            <tr
+              key={row.symbol}
+              className="clickable-row"
+              onClick={() => openTradingView(row.symbol)}
+            >
+              {variant === "buy" && <td className="rank-cell">{row.rank ?? "—"}</td>}
+              <td>
+                <div className="symbol-cell">
+                  <span className="symbol">{row.symbol}</span>
+                  <span className="name">{row.name}</span>
+                  {variant === "buy" && row.sector && (
+                    <span className="sector-tag">{row.sector}</span>
+                  )}
+                </div>
+              </td>
+              <td>{formatPrice(row.price)}</td>
+              <td>{formatMarketCap(row.marketCap)}</td>
+              {variant === "buy" && (
+                <td className={changeClass(row.strengthPct)}>{formatPct(row.strengthPct)}</td>
+              )}
+              <td>
+                <div className="stacked-cell">
+                  <span className={changeClass(row.change1w)}>{formatPct(row.change1w)}</span>
+                  <span className={`stacked-sub ${changeClass(row.change1m)}`}>
+                    {formatPct(row.change1m)}
+                  </span>
+                </div>
+              </td>
+              {variant === "buy" && (
+                <td className={changeClass(row.changeSinceEntry)}>
+                  {formatPct(row.changeSinceEntry)}
+                </td>
+              )}
+              <td>
+                <div className="stacked-cell">
+                  <span>{formatDate(row.signalDate)}</span>
+                  <span className="stacked-sub">{formatPrice(row.stopLoss)}</span>
+                </div>
+              </td>
+              <td
+                title={
+                  variant === "buy" && row.graceWeeksIfBoughtNow != null
+                    ? row.weeksInCriteria > 1
+                      ? `Signal is ${row.weeksInCriteria - 1} week(s) old — if you buy now, only ${row.graceWeeksIfBoughtNow} week(s) of grace period remain (anchored to the original signal, not today)`
+                      : "Fresh signal — full 12-week grace period if bought now"
+                    : undefined
+                }
+              >
+                {variant === "buy" && row.graceWeeksIfBoughtNow != null ? (
+                  <div className="stacked-cell">
+                    <span>{formatWeeks(row.weeksInCriteria)}</span>
+                    <span className="stacked-sub">{row.graceWeeksIfBoughtNow}wk grace left</span>
+                  </div>
+                ) : (
+                  formatWeeks(row.weeksInCriteria)
+                )}
+              </td>
+              {variant === "buy" && (
+                <td>
+                  <div className="stacked-cell">
+                    <span className={row.affordableNow ? "" : "negative"}>
+                      {row.suggestedShares ?? "—"} sh (₹{formatPrice(row.suggestedAmount)})
+                    </span>
+                    {!row.affordableNow && row.reallocationSuggestion && (
+                      <span className="reallocation-note">
+                        Sell {row.reallocationSuggestion.symbol} instead (weaker,{" "}
+                        {row.reallocationSuggestion.strengthPct?.toFixed(1)}%)
+                      </span>
+                    )}
+                    {!row.affordableNow && !row.reallocationSuggestion && (
+                      <span className="reallocation-note">Not enough cash</span>
+                    )}
+                  </div>
+                </td>
+              )}
+              <td>
+                <button
+                  className="chart-link"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openTradingView(row.symbol);
+                  }}
+                >
+                  Chart ↗
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

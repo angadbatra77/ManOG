@@ -68,22 +68,24 @@ function ScreenerTab() {
         Weekly RSI(60) breakout + upper Bollinger Band close + bullish MACD, market cap &gt; ₹1000 Cr
       </p>
 
-      <CapitalSettings />
+      <div className="toolbar">
+        <CapitalSettings />
 
-      <div className="controls">
-        <button onClick={handleRefresh} disabled={status.refreshing}>
-          {status.refreshing ? "Refreshing…" : "Refresh"}
-        </button>
-        {status.refreshing && status.progress.total > 0 && (
-          <span className="progress">
-            {status.progress.done} / {status.progress.total}
-          </span>
-        )}
-        {updatedAt && (
-          <span className="updated-at">
-            Last updated: {new Date(updatedAt).toLocaleString()}
-          </span>
-        )}
+        <div className="controls">
+          <button onClick={handleRefresh} disabled={status.refreshing}>
+            {status.refreshing ? "Refreshing…" : "Refresh"}
+          </button>
+          {status.refreshing && status.progress.total > 0 && (
+            <span className="progress">
+              {status.progress.done} / {status.progress.total}
+            </span>
+          )}
+          {updatedAt && (
+            <span className="updated-at">
+              Last updated: {new Date(updatedAt).toLocaleString()}
+            </span>
+          )}
+        </div>
       </div>
 
       {stale && (
