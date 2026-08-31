@@ -65,7 +65,12 @@ jobs:
             for poll in $(seq 1 "$MAX_POLLS"); do
               sleep "$POLL_INTERVAL"
               status=$(curl -sf "$URL/api/status" --max-time 30 2>/dev/null || echo '{}')
-              refreshing=$(echo "$status" | jq -r '.refreshing // "unknown"')
+              # NOT `.refreshing // "unknown"` - jq's // treats false the
+              # same as null, so a genuine `false` would silently become
+              # the string "unknown" and never match the check below. Hit
+              # this for real: a run sat "in_progress" for ~10+ minutes
+              # after the actual refresh had already finished cleanly.
+              refreshing=$(echo "$status" | jq -r '.refreshing | tostring')
               last_error=$(echo "$status" | jq -r '.lastError')
               echo "poll $poll/$MAX_POLLS: refreshing=$refreshing lastError=$last_error"
 
