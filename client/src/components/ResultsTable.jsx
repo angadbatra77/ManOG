@@ -63,6 +63,7 @@ export default function ResultsTable({ results, updatedAt, variant = "buy" }) {
         <tr>
           {variant === "buy" && <th title="Order of preference — strongest breakout first">#</th>}
           <th>Symbol</th>
+          {variant === "buy" && <th>Sector</th>}
           <th>Current Price</th>
           <th>Market Cap</th>
           {variant === "buy" && (
@@ -102,6 +103,7 @@ export default function ResultsTable({ results, updatedAt, variant = "buy" }) {
                 <span className="name">{row.name}</span>
               </div>
             </td>
+            {variant === "buy" && <td>{row.sector ?? "—"}</td>}
             <td>{formatPrice(row.price)}</td>
             <td>{formatMarketCap(row.marketCap)}</td>
             {variant === "buy" && (

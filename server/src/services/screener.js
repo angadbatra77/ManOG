@@ -8,6 +8,7 @@ import { computeIndicators } from "./indicators.js";
 import { computeStreak } from "./streak.js";
 import { fetchDailyCandlesUpstox } from "./upstoxData.js";
 import { getFirstSeenDate } from "./historyDb.js";
+import { getOrFetchSector } from "./sectorDb.js";
 import { computeCurrentEquity, findWeakestHolding } from "./equity.js";
 import { groupIntoWeeks, excludeUnsettledToday, toISTDateString } from "./weeklyResample.js";
 import {
@@ -340,6 +341,14 @@ export async function runScreener({ limit, onProgress } = {}) {
   );
 
   await persistCandlesCache();
+
+  // Sector is looked up only for the small set of stocks that actually made
+  // the final list, not the whole candidate universe — it's a separate
+  // per-symbol Yahoo call from the price data above, and a sector almost
+  // never changes, so it's cached indefinitely in Supabase (sectorDb.js)
+  // rather than being a recurring cost.
+  const sectors = await Promise.all(results.map((r) => getOrFetchSector(r.symbol)));
+  results.forEach((r, i) => { r.sector = sectors[i]; });
 
   // Order of preference: strongest breakout first (highest % above the
   // upper Bollinger Band at signal) — matches the priority ranking used

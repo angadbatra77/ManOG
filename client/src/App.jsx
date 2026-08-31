@@ -4,6 +4,7 @@ import HoldingsTab from "./components/HoldingsTab.jsx";
 import HistoryTab from "./components/HistoryTab.jsx";
 import SellSignalsTab from "./components/SellSignalsTab.jsx";
 import CapitalSettings from "./components/CapitalSettings.jsx";
+import IndicesTicker from "./components/IndicesTicker.jsx";
 import "./App.css";
 
 function ScreenerTab() {
@@ -107,8 +108,9 @@ export default function App() {
 
   return (
     <div className="app">
-      <header>
+      <header className="app-header">
         <h1>NSE Momentum Screener</h1>
+        <IndicesTicker />
       </header>
 
       {/* Upstox banner hidden — Yahoo is the primary data source for actual

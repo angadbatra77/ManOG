@@ -16,6 +16,7 @@ import {
   saveLatestResults,
   getLatestResults,
 } from "../services/latestResultsDb.js";
+import { getIndexQuotes } from "../services/indices.js";
 
 const router = Router();
 
@@ -36,6 +37,15 @@ router.get("/nse-symbols", async (_req, res) => {
 
 router.get("/status", (_req, res) => {
   res.json(getStatus());
+});
+
+router.get("/indices", async (_req, res) => {
+  try {
+    const quotes = await getIndexQuotes();
+    res.json({ quotes });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Failed to fetch indices" });
+  }
 });
 
 router.get("/history/dates", async (_req, res) => {
