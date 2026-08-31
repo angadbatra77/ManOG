@@ -6,9 +6,10 @@ import { getNseUniverse } from "./nseUniverse.js";
 import { filterByMarketCap, getMarketCapFreshness } from "./marketCap.js";
 import { computeIndicators } from "./indicators.js";
 import { computeStreak } from "./streak.js";
-import { fetchWeeklyCandlesUpstox } from "./upstoxData.js";
+import { fetchDailyCandlesUpstox } from "./upstoxData.js";
 import { getFirstSeenDate } from "./historyDb.js";
 import { computeCurrentEquity, findWeakestHolding } from "./equity.js";
+import { groupIntoWeeks, excludeUnsettledToday } from "./weeklyResample.js";
 import {
   RSI_BUY_LEVEL,
   WEEKLY_LOOKBACK_WEEKS,
@@ -20,9 +21,11 @@ import {
   MAX_TRADE_VALUE,
 } from "../config.js";
 
-function weeksAgoDate(weeks) {
+const LOOKBACK_DAYS = WEEKLY_LOOKBACK_WEEKS * 7;
+
+function daysAgoDate(days) {
   const d = new Date();
-  d.setDate(d.getDate() - weeks * 7);
+  d.setDate(d.getDate() - days);
   return d;
 }
 
@@ -57,6 +60,18 @@ export async function persistCandlesCache() {
 // this project already) is the automatic fallback — this way a stale/
 // expired Upstox login this morning degrades the data quality slightly
 // instead of breaking the screener outright.
+//
+// Weekly candles are built here from DAILY candles, not requested directly
+// from either vendor's own "weekly" interval. This matches exactly how the
+// validated 20-year backtest constructs weeks (see weeklyResample.js) —
+// and, as a direct side effect, fixes a real live-only bug: a vendor's
+// native "current week" candle keeps updating with the live/intraday price
+// while the market is open, so a stock could satisfy the buy criteria at
+// 11am and no longer satisfy it at 11:30am, purely from ordinary intraday
+// noise. Building the week ourselves lets us drop today's own candle until
+// NSE actually closes (excludeUnsettledToday), so the current week's candle
+// is only ever built from fully settled days — a signal is now a stable
+// daily fact, not something that can flicker minute to minute.
 export async function fetchWeeklyCandles(symbol) {
   const cache = await loadCandlesCache();
   const entry = cache[symbol];
@@ -64,22 +79,22 @@ export async function fetchWeeklyCandles(symbol) {
     return entry.candles;
   }
 
-  let candles = null;
+  let daily = null;
   try {
-    candles = await fetchWeeklyCandlesUpstox(symbol, WEEKLY_LOOKBACK_WEEKS);
+    daily = await fetchDailyCandlesUpstox(symbol, LOOKBACK_DAYS);
   } catch {
-    candles = null; // fall through to Yahoo below
+    daily = null; // fall through to Yahoo below
   }
 
-  if (!candles) {
+  if (!daily) {
     const result = await yahooFinance.chart(symbol, {
-      period1: weeksAgoDate(WEEKLY_LOOKBACK_WEEKS),
-      interval: "1wk",
+      period1: daysAgoDate(LOOKBACK_DAYS),
+      interval: "1d",
     });
     const quotes = (result?.quotes ?? []).filter(
       (q) => q.close != null && q.high != null && q.low != null
     );
-    candles = quotes.map((q) => ({
+    daily = quotes.map((q) => ({
       date: q.date,
       open: q.open,
       high: q.high,
@@ -88,6 +103,9 @@ export async function fetchWeeklyCandles(symbol) {
       volume: q.volume,
     }));
   }
+
+  const settledDaily = excludeUnsettledToday(daily);
+  const candles = groupIntoWeeks(settledDaily).map((w) => w.candle);
 
   cache[symbol] = { fetchedAt: Date.now(), candles };
   candlesCacheDirty = true;
