@@ -78,15 +78,22 @@ router.post("/refresh", async (req, res) => {
       limit,
       onProgress: (done, total) => setProgress(done, total),
     });
-    await saveLatestResults(results, { stale, staleAsOf });
-    // Not a hard failure (we still have a usable candidate list from an
-    // earlier successful fetch), so this doesn't go through setError —
-    // the frontend reads the persisted stale/staleAsOf flag from
-    // /api/results directly, which stays correct across reloads and for
-    // anyone else who opens the app, unlike this in-memory status.
-    // only record real, full-universe runs into date-wise history — not
-    // partial test/dev runs triggered with a ?limit=
+
+    // A ?limit= run only ever checks a small slice of the universe, so
+    // whatever it finds is never a real picture of "what's on the market
+    // today" — saving it as the live homepage (or the day's history) would
+    // silently replace a correct full-universe result with an incomplete
+    // one. The real UI never sends ?limit=; this only ever exists for
+    // local dev/test runs, so gating both writes behind it costs nothing
+    // for actual usage and makes this class of bug impossible by
+    // construction, rather than relying on remembering not to.
     if (!limit) {
+      await saveLatestResults(results, { stale, staleAsOf });
+      // Not a hard failure (we still have a usable candidate list from an
+      // earlier successful fetch), so this doesn't go through setError —
+      // the frontend reads the persisted stale/staleAsOf flag from
+      // /api/results directly, which stays correct across reloads and for
+      // anyone else who opens the app, unlike this in-memory status.
       await saveDailySnapshot(results).catch((err) =>
         console.error("Failed to save history snapshot:", err.message)
       );
