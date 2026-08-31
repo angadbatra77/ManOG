@@ -333,6 +333,15 @@ export async function runScreener({ limit, onProgress } = {}) {
                   changeSinceEntry: signal.priceAtSignal
                     ? ((currentPrice - signal.priceAtSignal) / signal.priceAtSignal) * 100
                     : null,
+                  // Calendar days since the same effective "day zero" the
+                  // freshness filter uses (the earliest date we actually
+                  // observed this signal, not just the week-start date) —
+                  // a real day count, not weeksInCriteria*7, so a signal
+                  // that broke out mid-week reads correctly instead of
+                  // jumping in fixed 7-day steps.
+                  daysInCriteria: Math.round(
+                    (Date.now() - new Date(effectiveDateStr).getTime()) / (24 * 60 * 60 * 1000)
+                  ),
                   weeksInCriteria: signal.weeksInCriteria,
                   strengthPct: signal.strengthPct,
                   graceWeeksIfBoughtNow: remainingGraceWeeks(signal.weeksInCriteria),

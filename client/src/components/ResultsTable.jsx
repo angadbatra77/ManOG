@@ -19,6 +19,11 @@ function formatWeeks(value) {
   return value === 1 ? "1 wk" : `${value} wks`;
 }
 
+function formatDays(value) {
+  if (value == null) return "—";
+  return value === 1 ? "1 day" : `${value} days`;
+}
+
 function formatMarketCap(value) {
   if (value == null) return "—";
   const cr = value / 1_00_00_000;
@@ -139,7 +144,7 @@ export default function ResultsTable({ results, updatedAt, variant = "buy" }) {
               >
                 {variant === "buy" && row.graceWeeksIfBoughtNow != null ? (
                   <div className="stacked-cell">
-                    <span>{formatWeeks(row.weeksInCriteria)}</span>
+                    <span>{formatDays(row.daysInCriteria)}</span>
                     <span className="stacked-sub">{row.graceWeeksIfBoughtNow}wk grace left</span>
                   </div>
                 ) : (
