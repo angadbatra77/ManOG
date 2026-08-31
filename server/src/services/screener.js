@@ -9,7 +9,12 @@ import { computeStreak } from "./streak.js";
 import { fetchDailyCandlesUpstox } from "./upstoxData.js";
 import { getFirstSeenDate } from "./historyDb.js";
 import { computeCurrentEquity, findWeakestHolding } from "./equity.js";
-import { groupIntoWeeks, excludeUnsettledToday } from "./weeklyResample.js";
+import { groupIntoWeeks, excludeUnsettledToday, toISTDateString } from "./weeklyResample.js";
+import {
+  getLatestStoredDate,
+  getStoredDailyCandles,
+  upsertDailyCandles,
+} from "./dailyCandlesDb.js";
 import {
   RSI_BUY_LEVEL,
   WEEKLY_LOOKBACK_WEEKS,
@@ -60,7 +65,38 @@ export async function persistCandlesCache() {
 // this project already) is the automatic fallback — this way a stale/
 // expired Upstox login this morning degrades the data quality slightly
 // instead of breaking the screener outright.
-//
+async function fetchDailyCandlesFromVendors(symbol, lookbackDays) {
+  let daily = null;
+  try {
+    daily = await fetchDailyCandlesUpstox(symbol, lookbackDays);
+  } catch {
+    daily = null; // fall through to Yahoo below
+  }
+
+  if (daily) return daily;
+
+  const result = await yahooFinance.chart(symbol, {
+    period1: daysAgoDate(lookbackDays),
+    interval: "1d",
+  });
+  const quotes = (result?.quotes ?? []).filter(
+    (q) => q.close != null && q.high != null && q.low != null
+  );
+  return quotes.map((q) => ({
+    date: q.date,
+    open: q.open,
+    high: q.high,
+    low: q.low,
+    close: q.close,
+    volume: q.volume,
+  }));
+}
+
+function daysSince(dateStr) {
+  const from = new Date(`${dateStr}T00:00:00Z`);
+  return Math.floor((Date.now() - from.getTime()) / (24 * 60 * 60 * 1000));
+}
+
 // Weekly candles are built here from DAILY candles, not requested directly
 // from either vendor's own "weekly" interval. This matches exactly how the
 // validated 20-year backtest constructs weeks (see weeklyResample.js) —
@@ -72,6 +108,11 @@ export async function persistCandlesCache() {
 // NSE actually closes (excludeUnsettledToday), so the current week's candle
 // is only ever built from fully settled days — a signal is now a stable
 // daily fact, not something that can flicker minute to minute.
+//
+// The daily history itself is persisted in Supabase (daily_candles), not
+// re-downloaded wholesale on every refresh. A symbol we've already seen
+// before only needs "yesterday -> today" fetched and appended; only a
+// brand-new symbol (or a Supabase outage) pays the full ~2-year fetch.
 export async function fetchWeeklyCandles(symbol) {
   const cache = await loadCandlesCache();
   const entry = cache[symbol];
@@ -79,29 +120,42 @@ export async function fetchWeeklyCandles(symbol) {
     return entry.candles;
   }
 
-  let daily = null;
+  const plainSymbol = symbol.replace(/\.NS$/, "");
+
+  let latestStored = null;
   try {
-    daily = await fetchDailyCandlesUpstox(symbol, LOOKBACK_DAYS);
+    latestStored = await getLatestStoredDate(plainSymbol);
   } catch {
-    daily = null; // fall through to Yahoo below
+    latestStored = null; // Supabase hiccup — treat as first-time below
   }
 
-  if (!daily) {
-    const result = await yahooFinance.chart(symbol, {
-      period1: daysAgoDate(LOOKBACK_DAYS),
-      interval: "1d",
-    });
-    const quotes = (result?.quotes ?? []).filter(
-      (q) => q.close != null && q.high != null && q.low != null
-    );
-    daily = quotes.map((q) => ({
-      date: q.date,
-      open: q.open,
-      high: q.high,
-      low: q.low,
-      close: q.close,
-      volume: q.volume,
-    }));
+  // A small buffer past the actual gap absorbs weekends/holidays/a missed
+  // refresh day or two without needing exact trading-calendar math; capped
+  // at the full lookback so a very stale or never-seen symbol just falls
+  // back to a full historical fetch instead of an insufficient window.
+  const fetchDays = latestStored
+    ? Math.min(LOOKBACK_DAYS, Math.max(3, daysSince(latestStored) + 3))
+    : LOOKBACK_DAYS;
+
+  const fetched = await fetchDailyCandlesFromVendors(symbol, fetchDays);
+
+  if (fetched.length > 0) {
+    try {
+      await upsertDailyCandles(plainSymbol, fetched);
+    } catch {
+      // storage failing shouldn't break the screener — worst case this
+      // same slice gets re-fetched next refresh instead of being skipped
+    }
+  }
+
+  let daily = fetched;
+  try {
+    const cutoff = toISTDateString(daysAgoDate(LOOKBACK_DAYS));
+    const stored = await getStoredDailyCandles(plainSymbol, cutoff);
+    if (stored.length > 0) daily = stored;
+  } catch {
+    // Supabase read failing — fall back to whatever was just fetched over
+    // the network (a short window if this symbol already had history)
   }
 
   const settledDaily = excludeUnsettledToday(daily);

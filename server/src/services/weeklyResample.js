@@ -41,8 +41,16 @@ export function groupIntoWeeks(dailyCandles) {
   });
 }
 
+// Calendar date (YYYY-MM-DD) of a timestamp as seen in IST — the convention
+// used everywhere a "trading day" needs a single, unambiguous date key
+// (this module's own settlement check, and the daily_candles store's
+// primary key).
+export function toISTDateString(date = new Date()) {
+  return new Date(date).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+}
+
 export function todayIST() {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  return toISTDateString();
 }
 
 // NSE closes 3:30 PM IST. Before that, today's daily candle is still live —
@@ -69,8 +77,5 @@ export function isTodaysSessionSettled(now = new Date()) {
 export function excludeUnsettledToday(dailyCandles) {
   if (isTodaysSessionSettled()) return dailyCandles;
   const today = todayIST();
-  return dailyCandles.filter((c) => {
-    const candleDateIST = new Date(c.date).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
-    return candleDateIST !== today;
-  });
+  return dailyCandles.filter((c) => toISTDateString(c.date) !== today);
 }
