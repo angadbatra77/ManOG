@@ -20,7 +20,7 @@ export const GRACE_WEEKS = 12;
 // stock that broke out Thursday still carries that week's Monday date,
 // meaning it can read as "older" than the trading days that actually
 // passed. Tighten or loosen this if that edge behavior surprises you.
-export const MAX_SIGNAL_AGE_DAYS = 3;
+export const MAX_SIGNAL_AGE_DAYS = 7;
 
 // Validated position sizing: each trade sized at the smaller of
 // PCT_OF_EQUITY_PER_TRADE% of current equity or MAX_TRADE_VALUE — real

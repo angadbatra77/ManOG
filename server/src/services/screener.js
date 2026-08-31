@@ -243,6 +243,13 @@ export async function runScreener({ limit, onProgress } = {}) {
                   signalDate: signal.signalDate,
                   firstSeenDate: firstSeenDate,
                   priceAtSignal: signal.priceAtSignal,
+                  // How the price has moved since the ORIGINAL breakout close,
+                  // not since a calendar week/month ago (that's change1w/1m) —
+                  // this is "what would my return be if I'd bought the week it
+                  // first entered criteria."
+                  changeSinceEntry: signal.priceAtSignal
+                    ? ((currentPrice - signal.priceAtSignal) / signal.priceAtSignal) * 100
+                    : null,
                   weeksInCriteria: signal.weeksInCriteria,
                   strengthPct: signal.strengthPct,
                   graceWeeksIfBoughtNow: remainingGraceWeeks(signal.weeksInCriteria),

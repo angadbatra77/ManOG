@@ -72,6 +72,11 @@ export default function ResultsTable({ results, updatedAt, variant = "buy" }) {
           )}
           <th>1W Change</th>
           <th>1M Change</th>
+          {variant === "buy" && (
+            <th title="Price change from the original breakout close to now — what your return would be if you'd bought the week it first entered criteria">
+              Since Entry
+            </th>
+          )}
           <th>Signal Date</th>
           <th>Stop Loss</th>
           <th>{variant === "sell" ? "In Sell Mode" : "In Criteria"}</th>
@@ -104,6 +109,11 @@ export default function ResultsTable({ results, updatedAt, variant = "buy" }) {
             )}
             <td className={changeClass(row.change1w)}>{formatPct(row.change1w)}</td>
             <td className={changeClass(row.change1m)}>{formatPct(row.change1m)}</td>
+            {variant === "buy" && (
+              <td className={changeClass(row.changeSinceEntry)}>
+                {formatPct(row.changeSinceEntry)}
+              </td>
+            )}
             <td>{formatDate(row.signalDate)}</td>
             <td>{formatPrice(row.stopLoss)}</td>
             <td
