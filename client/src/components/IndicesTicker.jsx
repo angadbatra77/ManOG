@@ -42,9 +42,9 @@ export default function IndicesTicker() {
   if (quotes.length === 0) return null;
 
   return (
-    <div className="indices-ticker">
+    <div className="indices-grid">
       {quotes.map((q) => (
-        <div key={q.symbol} className="index-pill" title={q.label}>
+        <div key={q.symbol} className="index-cell">
           <span className="index-label">{q.label}</span>
           <span className="index-price">{formatPrice(q.price)}</span>
           <span className={`index-change ${changeClass(q.changePercent)}`}>

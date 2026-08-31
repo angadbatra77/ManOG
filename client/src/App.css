@@ -22,52 +22,53 @@ header h1 {
   font-size: 1.5rem;
 }
 
-.app-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem 1.5rem;
-  margin-bottom: 1.25rem;
+/* Fixed 5x3 grid — exactly 15 indices, always fully visible, no scrolling. */
+.indices-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.6rem;
+  margin-bottom: 1.5rem;
 }
 
-/* Single scrollable row instead of wrapping into a multi-row block — keeps
-   this a compact, secondary strip of market context rather than something
-   that competes with the page title for attention. */
-.indices-ticker {
+.index-cell {
   display: flex;
-  flex-wrap: nowrap;
-  gap: 0.4rem;
-  max-width: 60vw;
-  overflow-x: auto;
-  padding-bottom: 0.2rem;
-  scrollbar-width: thin;
-}
-
-.index-pill {
-  display: flex;
-  align-items: baseline;
-  gap: 0.35rem;
-  padding: 0.25rem 0.55rem;
-  border-radius: 999px;
-  background: rgba(136, 136, 136, 0.1);
-  font-size: 0.72rem;
-  white-space: nowrap;
-  flex-shrink: 0;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  background: rgba(136, 136, 136, 0.08);
 }
 
 .index-label {
   color: #aaa;
   font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .index-price {
   font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+  font-weight: 600;
 }
 
 .index-change {
   font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
   font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .indices-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .indices-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .subtitle {

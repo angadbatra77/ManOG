@@ -110,10 +110,11 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="app-header">
+      <header>
         <h1>NSE Momentum Screener</h1>
-        <IndicesTicker />
       </header>
+
+      <IndicesTicker />
 
       {/* Upstox banner hidden — Yahoo is the primary data source for actual
           trading decisions (see the session notes on why). Upstox still
