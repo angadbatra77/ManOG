@@ -7,9 +7,17 @@ import { MARKET_CAP_THRESHOLD, QUOTE_BATCH_SIZE, DATA_DIR } from "../config.js";
 
 const CANDIDATES_FILE = path.join(DATA_DIR, "marketcap-candidates.json");
 const SUPABASE_TABLE = "marketcap_candidates_cache";
-// market caps don't move enough within a few hours to justify re-querying
-// ~2500 symbols on every single refresh click
-const CANDIDATES_TTL_MS = 6 * 60 * 60 * 1000;
+// Market caps barely move week to week, let alone hour to hour - and the
+// app itself only ever claims to be "as fresh as the last fully completed
+// week" now (see weeklyResample.js). A 6-hour TTL made sense back when
+// this refreshed daily; now it just guarantees this list "expires" between
+// every weekly refresh, forcing a needless Yahoo re-fetch (and, if that
+// fetch hits a block, an alarming "Yahoo Finance fetch failed" banner) for
+// a list that was still perfectly valid. Matching the TTL to the actual
+// refresh cadence means it only ever re-fetches when a refresh is already
+// happening anyway, and the stale-fallback banner only fires for a
+// genuinely old list, not one from a few hours ago.
+const CANDIDATES_TTL_MS = 6 * 24 * 60 * 60 * 1000; // 6 days
 const QUOTE_BATCH_CONCURRENCY = 5;
 
 function chunk(arr, size) {
@@ -144,6 +152,14 @@ export async function filterByMarketCap(universe, { forceRefresh = false } = {})
   if (!forceRefresh && cached) {
     const age = Date.now() - new Date(cached.fetchedAt).getTime();
     if (Array.isArray(cached.candidates) && cached.candidates.length > 0 && age < CANDIDATES_TTL_MS) {
+      // This list might be marked stale from an earlier failed attempt,
+      // but it's still within the freshness window we're now confidently
+      // choosing to use — that's normal operation, not a fallback under
+      // duress. Clear the flag so the banner doesn't keep firing for data
+      // that's genuinely fine, just not re-fetched yet.
+      if (cached.stale) {
+        await persistCandidates({ ...cached, stale: false }).catch(() => {});
+      }
       return cached.candidates;
     }
   }
