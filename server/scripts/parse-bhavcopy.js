@@ -55,15 +55,97 @@ function dateFromFilename(name) {
   return null;
 }
 
+// Bhavcopy prints RAW traded prices — it does not adjust for splits or
+// bonuses. Yahoo does, which is why this never surfaced before. Left
+// uncorrected, SETFGOLD's 1:100 split reads as a one-day -99% crash, and a
+// backtest books it as a catastrophic loss on a position that actually just
+// became 100x the shares at 1/100 the price. Real cases in this window:
+// SETFGOLD, VSTIND, TATAINVEST, VESUVIUS, IRB, RUSHIL, MOTISONS, NDL.
+//
+// NSE hands us the correction for free: on the ex-date it prints a
+// PREVCLOSE that is already adjusted, so prevClose[t] / close[t-1] IS the
+// ratio. Anything more than a couple of percent off 1.0 is a corporate
+// action, not rounding. Prices before the action are multiplied by the
+// cumulative ratio so the series is continuous, which is the standard
+// back-adjustment every data vendor applies.
+const ACTION_TOLERANCE = 0.02;
+let actionsFound = 0;
+
+function backAdjust(bars) {
+  const factors = new Array(bars.length).fill(1);
+  let cum = 1;
+  for (let i = bars.length - 1; i >= 1; i--) {
+    const prior = bars[i - 1].close;
+    const stated = bars[i].prevClose;
+    if (prior > 0 && stated > 0) {
+      const ratio = stated / prior;
+      if (Math.abs(ratio - 1) > ACTION_TOLERANCE) { cum *= ratio; actionsFound++; }
+    }
+    factors[i - 1] = cum;
+  }
+  for (let i = 0; i < bars.length; i++) {
+    const f = factors[i];
+    if (f === 1) continue;
+    bars[i].open *= f;
+    bars[i].high *= f;
+    bars[i].low *= f;
+    bars[i].close *= f;
+    // Turnover is a rupee figure and is unaffected by a split; share
+    // counts are, so volume moves the other way to keep price x volume
+    // consistent with the value actually traded that day.
+    bars[i].volume = Math.round(bars[i].volume / f);
+  }
+}
+
+// Second pass, for what PREVCLOSE misses. Demergers and ETF
+// restructurings (360ONE, ABFRL, ABIRLANUVO, the ABSL ETFs) don't always
+// get a restated PREVCLOSE, leaving 502 single-day moves of >55% in the
+// first-pass output. Indian circuit filters cap most stocks near +/-20% a
+// day, so a move that size is structural, not price action.
+//
+// This is a heuristic, unlike the PREVCLOSE ratio which is exact. It would
+// also flatten a genuine collapse, which biases results optimistically —
+// so every symbol it touches is recorded, and the backtest can be re-run
+// excluding them to check the result doesn't depend on this.
+const RESIDUAL_DROP = 0.45;
+const RESIDUAL_RISE = 2.2;
+let residualActions = 0;
+const residualSymbols = new Set();
+
+function adjustResiduals(bars, sym) {
+  const factors = new Array(bars.length).fill(1);
+  let cum = 1;
+  let hit = false;
+  for (let i = bars.length - 1; i >= 1; i--) {
+    const prior = bars[i - 1].close;
+    if (prior > 0) {
+      const r = bars[i].close / prior;
+      if (r < RESIDUAL_DROP || r > RESIDUAL_RISE) { cum *= r; residualActions++; hit = true; }
+    }
+    factors[i - 1] = cum;
+  }
+  if (!hit) return;
+  residualSymbols.add(sym);
+  for (let i = 0; i < bars.length; i++) {
+    const f = factors[i];
+    if (f === 1) continue;
+    bars[i].open *= f;
+    bars[i].high *= f;
+    bars[i].low *= f;
+    bars[i].close *= f;
+    bars[i].volume = Math.round(bars[i].volume / f);
+  }
+}
+
 const bySymbol = new Map();
 const universe = new Map();
 let files = 0, rows = 0;
 
-function record(sym, date, o, h, l, c, v, val, isin) {
+function record(sym, date, o, h, l, c, v, val, pc, isin) {
   if (!(c > 0)) return;
   let arr = bySymbol.get(sym);
   if (!arr) { arr = []; bySymbol.set(sym, arr); }
-  arr.push(`${date},${o},${h},${l},${c},${v},${val}`);
+  arr.push(`${date},${o},${h},${l},${c},${v},${val},${pc}`);
   const u = universe.get(sym);
   if (!u) universe.set(sym, { first: date, last: date, days: 1, isin });
   else {
@@ -97,7 +179,7 @@ for (const y of years) {
       for (let i = 1; i < lines.length; i++) {
         const p = lines[i].split(",");
         if (p.length < 13 || p[1] !== "EQ") continue;
-        record(p[0].trim(), date, +p[2], +p[3], +p[4], +p[5], +p[8], +p[9], (p[12] || "").trim());
+        record(p[0].trim(), date, +p[2], +p[3], +p[4], +p[5], +p[8], +p[9], +p[7], (p[12] || "").trim());
       }
     } else {
       const cols = lines[0].trim().split(",");
@@ -110,7 +192,7 @@ for (const y of years) {
         record(
           p[ix.TckrSymb].trim(), date,
           +p[ix.OpnPric], +p[ix.HghPric], +p[ix.LwPric], +p[ix.ClsPric],
-          +p[ix.TtlTradgVol], +p[ix.TtlTrfVal], (p[ix.ISIN] || "").trim()
+          +p[ix.TtlTradgVol], +p[ix.TtlTrfVal], +p[ix.PrvsClsgPric], (p[ix.ISIN] || "").trim()
         );
       }
     }
@@ -132,10 +214,12 @@ for (let i = 0; i < keys.length; i += SYMBOLS_PER_CHUNK) {
     sub[`${k}.NS`] = bySymbol
       .get(k)
       .map((line) => {
-        const [date, o, h, l, c, v, val] = line.split(",");
-        return { date, open: +o, high: +h, low: +l, close: +c, volume: +v, value: +val };
+        const [date, o, h, l, c, v, val, pc] = line.split(",");
+        return { date, open: +o, high: +h, low: +l, close: +c, volume: +v, value: +val, prevClose: +pc };
       })
       .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    backAdjust(sub[`${k}.NS`]);
+    adjustResiduals(sub[`${k}.NS`], k);
   }
   await fs.writeFile(path.join(OUT, `${BASE}.part${chunk}.json`), JSON.stringify(sub));
   chunk++;
@@ -145,4 +229,7 @@ await fs.writeFile(path.join(OUT, "bhav-universe-240mo.json"), JSON.stringify(Ob
 
 const gone = [...universe.values()].filter((u) => u.last < "2026-08-01").length;
 console.log(`wrote ${chunk} chunks + universe index to ${OUT}`);
+console.log(`${actionsFound} corporate actions (splits/bonuses) detected and back-adjusted`);
+console.log(`${residualActions} residual >55% gaps adjusted heuristically across ${residualSymbols.size} symbols`);
+await fs.writeFile(path.join(OUT, "bhav-residual-actions.json"), JSON.stringify([...residualSymbols]));
 console.log(`${gone} of ${keys.length} symbols stopped trading during the window — these are what survivorship bias hides.`);

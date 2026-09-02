@@ -50,6 +50,10 @@ const STARTING_CAPITAL = Number(arg("capital", "1000000"));
 // market began in 2021" — truncating the data would leave the first ~35
 // weeks of every symbol with no usable RSI/BB/MACD at all.
 const FROM = arg("from", null);
+
+// daily = the validated assumption (live stop order, filled at the stop).
+// weekly-close = what the app can actually observe today.
+const STOP_MODE = arg("stop-mode", "daily");
 const YEARS = FROM
   ? (Date.now() - new Date(FROM + "T00:00:00Z").getTime()) / (365.25 * 24 * 3600 * 1000)
   : Number(arg("years", "20"));
@@ -147,10 +151,24 @@ function run(symbols, label) {
 
       if (idx - pos.entryWeekIdx >= GRACE_WEEKS) {
         let stopped = false;
-        for (const day of week.days) {
-          if (day.low <= pos.stopLoss) {
-            trades.push({ symbol: sym, ...pos, sellDate: day.date, sellPrice: pos.stopLoss, reason: "stop_loss" });
-            pos = null; stopped = true; break;
+        if (STOP_MODE === "daily") {
+          // What the strategy was validated on: a live stop order, watched
+          // every day, filled AT the stop price the moment it's touched.
+          for (const day of week.days) {
+            if (day.low <= pos.stopLoss) {
+              trades.push({ symbol: sym, ...pos, sellDate: day.date, sellPrice: pos.stopLoss, reason: "stop_loss" });
+              pos = null; stopped = true; break;
+            }
+          }
+        } else {
+          // What the app can actually tell you today: it compares the
+          // WEEKLY CLOSE to the stop, so you find out after the week ends
+          // and sell at that close, not at the stop. In a fast drop that is
+          // materially worse, and since ~99.9% of exits here are stops,
+          // this assumption carries almost the whole result.
+          if (week.candle.close <= pos.stopLoss) {
+            trades.push({ symbol: sym, ...pos, sellDate: week.candle.date, sellPrice: week.candle.close, reason: "stop_loss" });
+            pos = null; stopped = true;
           }
         }
         if (stopped) continue;
