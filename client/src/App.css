@@ -385,6 +385,26 @@ th.sorted {
   .live-dot { animation: none; }
 }
 
+/* The GTT figure is the one number on this page you act on — it goes
+   into a broker order by hand — so it reads as a value, not as body text.
+   The app cannot enforce a stop itself; handing over the right number on
+   the right day is the whole of its job here. */
+.gtt-price {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.gtt-note {
+  font-size: 0.72rem;
+  color: #888;
+  white-space: nowrap;
+}
+
+.gtt-note.negative {
+  color: #d84a4a;
+  font-weight: 600;
+}
+
 .positive {
   color: #2ba84a;
   font-weight: 600;

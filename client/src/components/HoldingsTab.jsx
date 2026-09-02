@@ -179,6 +179,9 @@ export default function HoldingsTab() {
               <th>Avg Buy</th>
               <th>Stop Loss</th>
               <th>Trailing SL</th>
+              <th title="The order to place at your broker. The app cannot enforce a stop itself — this is the number to put in the GTT, and the date it needs to be live.">
+                GTT to place
+              </th>
               <th>Current Price</th>
               <th>P&L</th>
               <th>Grace Period</th>
@@ -214,6 +217,33 @@ export default function HoldingsTab() {
                   </td>
                   <td className={h.trailingStopLoss > h.stopLoss ? "positive" : ""}>
                     {h.trailingStopLoss != null ? formatPrice(h.trailingStopLoss) : "—"}
+                  </td>
+                  <td>
+                    {h.gttTrigger == null ? (
+                      "—"
+                    ) : (
+                      <div className="stacked-cell">
+                        <span className="gtt-price">{formatPrice(h.gttTrigger)}</span>
+                        {h.gttLive ? (
+                          h.dailyBreach ? (
+                            <span
+                              className="gtt-note negative"
+                              title={`A daily low of ${formatPrice(h.dailyBreach.low)} went through this stop on ${h.dailyBreach.date}. If a GTT was resting at the broker it has already sold. If not, this position should be out.`}
+                            >
+                              breached {h.dailyBreach.date}
+                            </span>
+                          ) : (
+                            <span className="gtt-note">
+                              {h.stopRatchetedAbove ? "live · update it" : "live"}
+                            </span>
+                          )
+                        ) : (
+                          <span className="gtt-note" title="No stop can fire during the grace period. Place the order so it is live before this date.">
+                            place by {formatGraceDate(h.gttDueDate)}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td>{h.error ? "—" : formatPrice(h.price)}</td>
                   <td className={pnl == null ? "" : pnl >= 0 ? "positive" : "negative"}>

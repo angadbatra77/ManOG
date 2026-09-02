@@ -2,6 +2,7 @@ import pLimit from "p-limit";
 import { fetchWeeklyCandles, persistCandlesCache } from "./screener.js";
 import { computeIndicators } from "./indicators.js";
 import { getHistoricalStopLoss } from "./historyDb.js";
+import { getStoredDailyCandles } from "./dailyCandlesDb.js";
 import { GRACE_WEEKS } from "../config.js";
 
 const HOLDINGS_CONCURRENCY = 5;
@@ -46,6 +47,43 @@ function computeTrailingStopLoss(candles, initialStopLoss, purchaseDate) {
     if (candle.low > trailing) trailing = candle.low;
   }
   return trailing;
+}
+
+// Did any DAILY low go through the stop? The daily candles are already in
+// Supabase for every symbol the screener has ever fetched, so this costs a
+// single read and needs no new data source.
+//
+// The window starts when the stop actually goes live — the later of grace
+// ending and the purchase date — never at the signal. Scanning from the
+// signal week reports a breach on every position the moment it is added,
+// because the initial stop IS that week's low, so a day inside it touches
+// the level by definition. You also cannot be stopped out of something you
+// had not yet bought.
+//
+// Within that window it scans every day rather than just the latest: a
+// breach three days ago still means the position should be gone, and if no
+// GTT was resting at the broker nothing else would ever tell you.
+async function findDailyBreach(symbol, stopLoss, graceEndsDate, purchaseDate) {
+  if (stopLoss == null || !graceEndsDate) return null;
+  const liveFrom = [graceEndsDate, purchaseDate]
+    .filter(Boolean)
+    .map((d) => String(d).slice(0, 10))
+    .sort()
+    .pop();
+  if (!liveFrom || liveFrom > new Date().toISOString().slice(0, 10)) return null;
+  try {
+    const daily = await getStoredDailyCandles(symbol, liveFrom);
+    for (const d of daily) {
+      if (d.low != null && d.low <= stopLoss) {
+        return { date: d.date, low: d.low, close: d.close };
+      }
+    }
+  } catch {
+    // Supabase unavailable — fall back to reporting no breach rather than
+    // inventing one. The GTT at the broker is the real protection; this
+    // check is a safety net, and a silent net is better than a false alarm.
+  }
+  return null;
 }
 
 async function checkStopLossDeviation(symbol, stopLoss) {
@@ -103,9 +141,24 @@ export async function evaluateHoldings(holdings) {
             graceAnchor
           );
 
-          const stopLossHit =
-            trailingStopLoss != null && price != null && price <= trailingStopLoss;
+          // The stop is breached the moment any DAILY low touches it, not
+          // when a weekly close finishes below it. That distinction is the
+          // whole strategy: backtested with a resting broker order filling
+          // at the trigger it returns ~36% a year, and on a weekly-close
+          // check ~4%. Checking the weekly close here would quietly report
+          // a position as safe for days after the stop had actually gone.
+          const dailyBreach = await findDailyBreach(
+            holding.symbol,
+            trailingStopLoss,
+            grace.graceEndsDate,
+            holding.purchaseDate
+          );
+          const stopLossHit = dailyBreach != null;
           const macdSell = macdBullish === false;
+          // During grace no stop is live, so there is nothing to scan for.
+          // This cheaper check drives the early-warning state only.
+          const wouldBreachNow =
+            trailingStopLoss != null && price != null && price <= trailingStopLoss;
 
           let sellReason = null;
           if (!grace.inGracePeriod) {
@@ -127,9 +180,24 @@ export async function evaluateHoldings(holdings) {
             sellReason,
             stopLossWarning,
             ...grace,
+            // The number to actually place at the broker, and the date it
+            // becomes live. The app cannot enforce a stop itself — a web
+            // page can't watch the market — so its job is to hand you the
+            // right figure on the right day.
+            gttTrigger: trailingStopLoss,
+            gttDueDate: grace.graceEndsDate,
+            gttLive: !grace.inGracePeriod,
+            // The stop only moves when a weekly candle completes, so this
+            // says whether the GTT needs changing at all this week.
+            stopRatchetedAbove: trailingStopLoss != null && holding.stopLoss != null
+              ? trailingStopLoss > holding.stopLoss : false,
+            // Set when a daily low has already gone through the stop. If a
+            // GTT is in place this is history; if one isn't, it is a missed
+            // exit and needs acting on now.
+            dailyBreach,
             // what the exit checks would say right now, ignoring grace —
             // shown to the UI as an early-warning "watch" state, not a sell
-            wouldSellReason: grace.inGracePeriod ? (stopLossHit ? "stop_loss" : macdSell ? "macd" : null) : null,
+            wouldSellReason: grace.inGracePeriod ? (wouldBreachNow ? "stop_loss" : macdSell ? "macd" : null) : null,
           };
         } catch {
           return {
