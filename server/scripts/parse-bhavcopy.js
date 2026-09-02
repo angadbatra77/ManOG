@@ -178,7 +178,10 @@ for (const y of years) {
     if (lines[0].startsWith("SYMBOL,SERIES")) {
       for (let i = 1; i < lines.length; i++) {
         const p = lines[i].split(",");
-        if (p.length < 13 || p[1] !== "EQ") continue;
+        // Pre-2011 files carry 11 columns, not 13 — no TOTALTRADES, no ISIN.
+        // Requiring 13 silently discarded every row from 2006 to 2011,
+        // taking the 2008 crash out of the backtest entirely.
+        if (p.length < 11 || p[1] !== "EQ") continue;
         record(p[0].trim(), date, +p[2], +p[3], +p[4], +p[5], +p[8], +p[9], +p[7], (p[12] || "").trim());
       }
     } else {
