@@ -30,7 +30,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { computeIndicators } from "../src/services/indicators.js";
 import { groupIntoWeeks } from "../src/services/weeklyResample.js";
-import { RSI_BUY_LEVEL, GRACE_WEEKS } from "../src/config.js";
+import { RSI_BUY_LEVEL, GRACE_WEEKS, PCT_OF_EQUITY_PER_TRADE, MAX_TRADE_VALUE } from "../src/config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const arg = (name, fallback) => {
@@ -42,9 +42,17 @@ const PARSED = path.resolve(__dirname, arg("data", "."));
 const TURNOVER_WINDOW = 60;
 const WARMUP_WEEKS = 35;
 const ALIVE_CUTOFF = arg("alive", "2026-08-01");
-const YEARS = Number(arg("years", "20"));
 const STARTING_CAPITAL = Number(arg("capital", "1000000"));
-const MAX_PER_TRADE = 100_000;
+
+// --from restricts which SIGNALS count, not which price history is loaded.
+// Indicators still warm up on the full 20 years, so a 5-year window tests
+// "what would the strategy have done since 2021" rather than "what if the
+// market began in 2021" — truncating the data would leave the first ~35
+// weeks of every symbol with no usable RSI/BB/MACD at all.
+const FROM = arg("from", null);
+const YEARS = FROM
+  ? (Date.now() - new Date(FROM + "T00:00:00Z").getTime()) / (365.25 * 24 * 3600 * 1000)
+  : Number(arg("years", "20"));
 
 let TURNOVER_PCTILE = 0.605;
 try {
@@ -176,6 +184,11 @@ console.log(`universe: ${allSyms.length} total | ${survivors.length} still liste
 const runs = [run(survivors, "SURVIVORS ONLY (survivorship-biased control)"), run(allSyms, "FULL UNIVERSE (bias-free)")];
 for (const t of runs[1].trades) t.everDelisted = cached.get(t.symbol).lastDate < ALIVE_CUTOFF;
 
+if (FROM) {
+  for (const r of runs) r.trades = r.trades.filter((t) => String(t.buyDate).slice(0, 10) >= FROM);
+  console.log(`window: signals from ${FROM} onward only (${YEARS.toFixed(2)} years)\n`);
+}
+
 // Capital-constrained replay. Sells settle by DATE — note that
 // position-sized-simulation.js shifts a FIFO queue that was never sorted by
 // sellDate, which can strand cash behind a later-selling position.
@@ -196,7 +209,12 @@ function replay(trades, capital, delistingHaircut) {
       if (new Date(open[i].sellDate) <= today) { cash += open[i].shares * exitPrice(open[i]); open.splice(i, 1); }
     }
     for (const t of byDay.get(d).slice().sort((a, b) => b.strengthPct - a.strengthPct)) {
-      const sh = Math.floor(Math.min(cash, MAX_PER_TRADE) / t.buyPrice);
+      // The app's own sizing rule: min(PCT% of current equity, MAX_TRADE_VALUE).
+      // It compounds, unlike a fixed rupee cap, which is the difference
+      // between a CAGR that decays with account size and one that doesn't.
+      const equity = cash + open.reduce((s, p) => s + p.shares * p.buyPrice, 0);
+      const budget = Math.min(equity * (PCT_OF_EQUITY_PER_TRADE / 100), MAX_TRADE_VALUE, cash);
+      const sh = Math.floor(budget / t.buyPrice);
       if (sh < 1) continue;
       cash -= sh * t.buyPrice;
       taken++;
