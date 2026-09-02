@@ -17,6 +17,7 @@ import {
   getLatestResults,
 } from "../services/latestResultsDb.js";
 import { getStoredIndexQuotes } from "../services/indices.js";
+import { getLivePrices, MAX_SYMBOLS } from "../services/livePrices.js";
 
 const router = Router();
 
@@ -33,6 +34,29 @@ router.get("/nse-symbols", async (_req, res) => {
       name: s.name,
     })),
   });
+});
+
+// The only endpoint that hits Yahoo on a page view. Kept separate from
+// /results specifically so it can fail without taking the table with it:
+// the browser renders the cached weekly results first and fills this in
+// afterwards.
+router.get("/live-prices", async (req, res) => {
+  const raw = typeof req.query.symbols === "string" ? req.query.symbols.trim() : "";
+  if (!raw) {
+    return res.json({ prices: {}, asOf: null, marketState: null });
+  }
+
+  const symbols = raw
+    .split(",")
+    .map((s) => s.trim().toUpperCase())
+    .filter(Boolean)
+    .slice(0, MAX_SYMBOLS);
+
+  try {
+    res.json(await getLivePrices(symbols));
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Failed to fetch live prices" });
+  }
 });
 
 router.get("/status", (_req, res) => {

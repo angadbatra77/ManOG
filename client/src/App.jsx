@@ -14,15 +14,35 @@ function ScreenerTab() {
   const [staleAsOf, setStaleAsOf] = useState(null);
   const [status, setStatus] = useState({ refreshing: false, progress: { done: 0, total: 0 } });
   const [error, setError] = useState(null);
+  const [live, setLive] = useState(null);
   const pollRef = useRef(null);
 
   async function loadResults() {
     const res = await fetch("/api/results");
     const data = await res.json();
-    setResults(data.results ?? []);
+    const rows = data.results ?? [];
+    setResults(rows);
     setUpdatedAt(data.updatedAt ?? null);
     setStale(data.stale ?? false);
     setStaleAsOf(data.staleAsOf ?? null);
+    loadLivePrices(rows);
+  }
+
+  // Fired after the cached table is already on screen, and deliberately not
+  // awaited by it — this is the only call in the app that hits Yahoo on a
+  // page view, so it is never allowed to delay or break the render. If it
+  // fails the Live column just shows placeholders.
+  async function loadLivePrices(rows) {
+    if (!rows.length) return;
+    try {
+      const symbols = rows.map((r) => r.symbol).join(",");
+      const res = await fetch("/api/live-prices?symbols=" + encodeURIComponent(symbols));
+      if (!res.ok) return;
+      setLive(await res.json());
+    } catch {
+      // leave whatever was last fetched in place rather than blanking the
+      // column on a single bad poll
+    }
   }
 
   async function loadStatus() {
@@ -39,6 +59,15 @@ function ScreenerTab() {
     });
     return () => clearInterval(pollRef.current);
   }, []);
+
+  // Everything else in the table is weekly data that cannot change between
+  // refreshes; only this one number can, so it re-polls on its own instead
+  // of dragging a full /results fetch along with it.
+  useEffect(() => {
+    if (results.length === 0) return undefined;
+    const id = setInterval(() => loadLivePrices(results), 60000);
+    return () => clearInterval(id);
+  }, [results]);
 
   function startPolling() {
     clearInterval(pollRef.current);
@@ -100,7 +129,7 @@ function ScreenerTab() {
 
       {error && <p className="error">{error}</p>}
 
-      <ResultsTable results={results} updatedAt={updatedAt} />
+      <ResultsTable results={results} updatedAt={updatedAt} live={live} />
     </>
   );
 }

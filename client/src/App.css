@@ -276,6 +276,115 @@ header h1 {
   font-size: 0.68rem;
 }
 
+/* Every data column sorts. The arrow is always rendered, not just on
+   hover or when active, so the columns advertise that they're clickable
+   instead of hiding it behind a hover state that touch devices never
+   reach. */
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+th.sortable:hover {
+  color: #1a1a1a;
+}
+
+.sort-arrow {
+  margin-left: 0.3rem;
+  font-size: 0.6rem;
+  opacity: 0.25;
+}
+
+th.sorted .sort-arrow {
+  opacity: 1;
+  color: #4a7dff;
+}
+
+th.sorted {
+  color: #1a1a1a;
+}
+
+/* Divides the buy list into what just entered criteria and what has been
+   running for a while. Both halves keep every column: the older ones are
+   still real, still-qualifying signals, they are just no longer the fresh
+   entry the strategy is actually built around. */
+.section-row td {
+  padding: 0.85rem 0.6rem 0.35rem;
+  border-bottom: 1px solid #e3e3e3;
+  background: transparent;
+}
+
+.section-row:first-child td {
+  padding-top: 0.2rem;
+}
+
+.section-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+}
+
+.section-tag.fresh {
+  color: #1c6b34;
+  background: rgba(43, 168, 74, 0.14);
+}
+
+.section-tag.running {
+  color: #6b6b6b;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.section-note {
+  margin-left: 0.5rem;
+  color: #999;
+  font-size: 0.72rem;
+}
+
+.section-empty td {
+  padding: 0.6rem;
+  color: #888;
+  font-size: 0.82rem;
+  font-style: italic;
+}
+
+/* Marks the Live % Chg header only while NSE is actually open — the
+   column keeps showing the last quote after hours, and a permanent "live"
+   badge over a 5pm price would be the same kind of quiet lie this column
+   was added to fix. */
+/* Sits under the header rather than beside it: the column headers are
+   uppercased, so an inline qualifier reads as part of the label itself
+   ("LIVE % CHG AT CLOSE") instead of as the caveat it is. */
+.live-header-note {
+  display: block;
+  text-transform: none;
+  font-weight: 400;
+  color: #999;
+  font-size: 0.68rem;
+}
+
+.live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 0.35rem;
+  border-radius: 50%;
+  background: #2ba84a;
+  vertical-align: middle;
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot { animation: none; }
+}
+
 .positive {
   color: #2ba84a;
   font-weight: 600;
