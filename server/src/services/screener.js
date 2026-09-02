@@ -23,7 +23,6 @@ import {
   HISTORY_CONCURRENCY,
   DATA_DIR,
   GRACE_WEEKS,
-  MAX_SIGNAL_AGE_DAYS,
   PCT_OF_EQUITY_PER_TRADE,
   MAX_TRADE_VALUE,
 } from "../config.js";
@@ -231,17 +230,17 @@ function evaluateBuySignal(candles, indicators) {
   };
 }
 
-// Keep the homepage small and close to genuinely fresh: only show a signal
-// within MAX_SIGNAL_AGE_DAYS calendar days of its original breakout.
-// `effectiveDateStr` is the earliest date we actually observed this exact
-// signal (see getFirstSeenDate) when we have that history, since the raw
-// week-start signalDate only says which week a breakout happened in, not
-// which day — falling back to signalDate itself when we've never seen it.
-function isActionableNow(effectiveDateStr) {
-  const signalTime = new Date(effectiveDateStr).getTime();
-  if (Number.isNaN(signalTime)) return false;
-  const daysSinceSignal = (Date.now() - signalTime) / (24 * 60 * 60 * 1000);
-  return daysSinceSignal <= MAX_SIGNAL_AGE_DAYS;
+// A stock stays on the homepage as long as it entered criteria within the
+// last GRACE_WEEKS weeks and has kept qualifying every week since
+// (weeksInCriteria) — not just the week it first broke out. Tied to
+// GRACE_WEEKS specifically: that's the window where the strategy's own
+// exit rules do nothing regardless of price action, so anything still
+// inside it is still "live" by the strategy's own logic. No price-drift
+// cutoff — changeSinceEntry and daysInCriteria are shown on-screen so you
+// can judge each one yourself instead of the app silently hiding ones
+// that have already moved.
+function isWithinBuyWindow(weeksInCriteria) {
+  return weeksInCriteria <= GRACE_WEEKS;
 }
 
 // If you buy now instead of on the fresh breakout week, the grace period
@@ -250,6 +249,28 @@ function isActionableNow(effectiveDateStr) {
 // time it was never backtested with.
 function remainingGraceWeeks(weeksInCriteria) {
   return Math.max(0, GRACE_WEEKS - (weeksInCriteria - 1));
+}
+
+// firstSeenDate exists to SHARPEN the week-start date, not to replace it:
+// a stock that broke out on the Wednesday reads more truthfully as
+// "Wednesday" than as the Monday its week is keyed to. That only holds
+// while the observation actually lands inside the breakout week. History
+// has gaps — the app has only recorded snapshots since mid-Aug 2026, and
+// rows written before 31 Aug stored signal_date as the scan timestamp
+// rather than the week start, so they cannot be matched to a signal at
+// all. Outside the breakout week the earliest match is therefore not
+// "when this signal appeared", it is just the first scan that happened to
+// see an already-running streak, which is frequently the current one.
+// Taking that literally is exactly how a 7-week-old signal ends up
+// claiming it entered criteria 1 day ago. Past the breakout week the
+// week-start is the honest answer.
+function effectiveCriteriaDate(firstSeenDate, signalDate) {
+  if (!firstSeenDate) return signalDate;
+  const seen = new Date(firstSeenDate).getTime();
+  const weekStart = new Date(signalDate).getTime();
+  if (Number.isNaN(seen) || Number.isNaN(weekStart)) return signalDate;
+  const withinBreakoutWeek = seen >= weekStart && seen - weekStart < 7 * 24 * 60 * 60 * 1000;
+  return withinBreakoutWeek ? firstSeenDate : signalDate;
 }
 
 export function pctChange(candles, weeksBack) {
@@ -312,9 +333,18 @@ export async function runScreener({ limit, onProgress } = {}) {
                 // history lookup failing shouldn't break the screener — just
                 // fall back to the week-start date below
               }
-              const effectiveDateStr = firstSeenDate ?? signal.signalDate;
+              const effectiveDateStr = effectiveCriteriaDate(firstSeenDate, signal.signalDate);
+              // How the price has moved since the ORIGINAL breakout close,
+              // not since a calendar week/month ago (that's change1w/1m) —
+              // this is "what would my return be if I'd bought the week it
+              // first entered criteria," and also the price-drift gate
+              // that decides whether an older, still-streaking signal is
+              // still close enough to its entry to be worth showing.
+              const changeSinceEntry = signal.priceAtSignal
+                ? ((currentPrice - signal.priceAtSignal) / signal.priceAtSignal) * 100
+                : null;
 
-              if (isActionableNow(effectiveDateStr)) {
+              if (isWithinBuyWindow(signal.weeksInCriteria)) {
                 results.push({
                   symbol: plainSymbol,
                   name: stock.name,
@@ -325,18 +355,15 @@ export async function runScreener({ limit, onProgress } = {}) {
                   stopLoss: signal.stopLoss,
                   signalDate: signal.signalDate,
                   firstSeenDate: firstSeenDate,
+                  // The date the UI actually labels the row with, resolved
+                  // here rather than re-derived in the browser so the date
+                  // shown and the day count beneath it can never disagree.
+                  criteriaSinceDate: effectiveDateStr,
                   priceAtSignal: signal.priceAtSignal,
-                  // How the price has moved since the ORIGINAL breakout close,
-                  // not since a calendar week/month ago (that's change1w/1m) —
-                  // this is "what would my return be if I'd bought the week it
-                  // first entered criteria."
-                  changeSinceEntry: signal.priceAtSignal
-                    ? ((currentPrice - signal.priceAtSignal) / signal.priceAtSignal) * 100
-                    : null,
+                  changeSinceEntry,
                   // Calendar days since the same effective "day zero" the
-                  // freshness filter uses (the earliest date we actually
-                  // observed this signal, not just the week-start date) —
-                  // a real day count, not weeksInCriteria*7, so a signal
+                  // row is labelled with (see effectiveCriteriaDate) — a
+                  // real day count, not weeksInCriteria*7, so a signal
                   // that broke out mid-week reads correctly instead of
                   // jumping in fixed 7-day steps.
                   daysInCriteria: Math.round(

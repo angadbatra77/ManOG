@@ -1,4 +1,5 @@
 import { supabase as client } from "./supabaseClient.js";
+import { toISTDateString } from "./weeklyResample.js";
 
 function todayIST() {
   // date-wise history should follow Indian trading days, not the server's UTC date
@@ -79,13 +80,30 @@ export async function getAvailableDates() {
 // date, which only reflects which week a breakout happened in, not which
 // day — it just requires the screener to have actually been refreshed on
 // the days in between to have caught it.
+// signal_date is a timestamptz, but every value in it is meant to be a
+// plain IST calendar day. Different eras of this code wrote that day at
+// different instants — IST midnight (stored as 18:30Z the day before) up
+// to 31 Aug 2026, UTC midnight since — so exact timestamp equality
+// silently matched nothing across that boundary and every lookup fell
+// through to the current scan. Comparing the IST day, as a half-open
+// range so Postgres can still use an index, treats both eras as the same
+// day, which is what they always meant.
+function istDayRange(signalDate) {
+  const day = toISTDateString(signalDate);
+  const start = new Date(`${day}T00:00:00+05:30`);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
 export async function getFirstSeenDate(symbol, signalDate) {
   if (!client) return null;
+  const { start, end } = istDayRange(signalDate);
   const { data, error } = await client
     .from("screener_history")
     .select("scan_date")
     .eq("symbol", symbol)
-    .eq("signal_date", signalDate)
+    .gte("signal_date", start)
+    .lt("signal_date", end)
     .order("scan_date", { ascending: true })
     .limit(1);
   if (error) throw new Error(error.message);

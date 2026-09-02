@@ -11,16 +11,15 @@ export const RSI_BUY_LEVEL = 60;
 // ordinary early volatility before it's had room to work
 export const GRACE_WEEKS = 12;
 
-// The backtest only ever bought a stock on the FRESH week its RSI crossed
-// above 60 — never one already sitting in criteria. The homepage now only
-// shows a signal within this many calendar days of its original breakout,
-// to keep the list small and keep what you act on close to genuinely fresh.
-// Caveat: weekly candles are date-stamped at the START of their week
-// (Monday), not when the breakout was actually detected mid-week — so a
-// stock that broke out Thursday still carries that week's Monday date,
-// meaning it can read as "older" than the trading days that actually
-// passed. Tighten or loosen this if that edge behavior surprises you.
-export const MAX_SIGNAL_AGE_DAYS = 7;
+// The homepage shows a stock as long as it entered criteria within the
+// last GRACE_WEEKS weeks AND has stayed continuously qualifying since
+// (weeksInCriteria counts exactly that) — not just brand-new breakouts.
+// Deliberately tied to GRACE_WEEKS itself, not a separate number: GRACE_WEEKS
+// is the window where the strategy's own exit rules do nothing regardless of
+// price action, so any signal still inside it is still "live" by the
+// strategy's own logic, not something that's aged out. No price-drift cutoff
+// here on purpose — changeSinceEntry is shown on-screen so you can judge
+// each one yourself rather than have the app silently hide ones that moved.
 
 // Validated position sizing: each trade sized at the smaller of
 // PCT_OF_EQUITY_PER_TRADE% of current equity or MAX_TRADE_VALUE — real
