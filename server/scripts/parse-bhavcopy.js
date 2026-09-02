@@ -69,7 +69,23 @@ function dateFromFilename(name) {
 // cumulative ratio so the series is continuous, which is the standard
 // back-adjustment every data vendor applies.
 const ACTION_TOLERANCE = 0.02;
+// A stated PREVCLOSE only refers to the bar before it when the two are
+// actually consecutive sessions. Across a hole in the series it compares
+// against whatever we last kept, which is not what NSE was quoting — and
+// that reads as a corporate action that never happened.
+//
+// This is not hypothetical. BODALCHEM spent 67 days in the BE segment; with
+// BE excluded the series had a 98-day hole, and 31-Aug-2026's stated
+// previous close of 99.08 got compared against 25-May's 75.80. The 1.307
+// ratio scaled every earlier price up 30%, which is why our history
+// disagreed with Yahoo by ~23% while both agreed on today's price.
+//
+// BE rows are now kept, which removes most holes; this guard covers the
+// rest — genuine suspensions, delisting gaps, thin symbols that simply
+// did not trade.
+const MAX_GAP_DAYS = 5;
 let actionsFound = 0;
+let gapsSkipped = 0;
 
 function backAdjust(bars) {
   const factors = new Array(bars.length).fill(1);
@@ -79,7 +95,11 @@ function backAdjust(bars) {
     const stated = bars[i].prevClose;
     if (prior > 0 && stated > 0) {
       const ratio = stated / prior;
-      if (Math.abs(ratio - 1) > ACTION_TOLERANCE) { cum *= ratio; actionsFound++; }
+      if (Math.abs(ratio - 1) > ACTION_TOLERANCE) {
+        const gap = (new Date(bars[i].date) - new Date(bars[i - 1].date)) / 86400000;
+        if (gap <= MAX_GAP_DAYS) { cum *= ratio; actionsFound++; }
+        else gapsSkipped++;
+      }
     }
     factors[i - 1] = cum;
   }
@@ -120,7 +140,11 @@ function adjustResiduals(bars, sym) {
     const prior = bars[i - 1].close;
     if (prior > 0) {
       const r = bars[i].close / prior;
-      if (r < RESIDUAL_DROP || r > RESIDUAL_RISE) { cum *= r; residualActions++; hit = true; }
+      if (r < RESIDUAL_DROP || r > RESIDUAL_RISE) {
+        const gap = (new Date(bars[i].date) - new Date(bars[i - 1].date)) / 86400000;
+        if (gap <= MAX_GAP_DAYS) { cum *= r; residualActions++; hit = true; }
+        else gapsSkipped++;
+      }
     }
     factors[i - 1] = cum;
   }
@@ -181,7 +205,7 @@ for (const y of years) {
         // Pre-2011 files carry 11 columns, not 13 — no TOTALTRADES, no ISIN.
         // Requiring 13 silently discarded every row from 2006 to 2011,
         // taking the 2008 crash out of the backtest entirely.
-        if (p.length < 11 || p[1] !== "EQ") continue;
+        if (p.length < 11 || (p[1] !== "EQ" && p[1] !== "BE")) continue;
         record(p[0].trim(), date, +p[2], +p[3], +p[4], +p[5], +p[8], +p[9], +p[7], (p[12] || "").trim());
       }
     } else {
@@ -191,7 +215,8 @@ for (const y of years) {
         const p = lines[i].split(",");
         if (p.length < cols.length - 4) continue;
         // The UDiFF feed carries gold bonds, ETFs and derivatives too.
-        if (p[ix.FinInstrmTp] !== "STK" || p[ix.SctySrs] !== "EQ") continue;
+        if (p[ix.FinInstrmTp] !== "STK") continue;
+        if (p[ix.SctySrs] !== "EQ" && p[ix.SctySrs] !== "BE") continue;
         record(
           p[ix.TckrSymb].trim(), date,
           +p[ix.OpnPric], +p[ix.HghPric], +p[ix.LwPric], +p[ix.ClsPric],
@@ -234,5 +259,6 @@ const gone = [...universe.values()].filter((u) => u.last < "2026-08-01").length;
 console.log(`wrote ${chunk} chunks + universe index to ${OUT}`);
 console.log(`${actionsFound} corporate actions (splits/bonuses) detected and back-adjusted`);
 console.log(`${residualActions} residual >55% gaps adjusted heuristically across ${residualSymbols.size} symbols`);
+console.log(`${gapsSkipped} apparent actions IGNORED because they sat across a hole in the series`);
 await fs.writeFile(path.join(OUT, "bhav-residual-actions.json"), JSON.stringify([...residualSymbols]));
 console.log(`${gone} of ${keys.length} symbols stopped trading during the window — these are what survivorship bias hides.`);
