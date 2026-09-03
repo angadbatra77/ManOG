@@ -324,7 +324,7 @@ export default function ResultsTable({ results, updatedAt, variant = "buy", live
         <thead>
           <tr>
             {variant === "buy" &&
-              th("rank", "#", "Order of preference — strongest breakout first. Click any header to re-sort; click it twice to flip, three times to return to this order.")}
+              th("rank", "#", "Sorted by entry strength — how far above the upper Bollinger Band the breakout closed. This is an ordering, NOT a prediction of which stock does better: across 20 years it correlates 0.037 with return, sits inside the random-seed range at every capital level, and ranked worse than picking at random over 2006-16. Click any header to re-sort; twice to flip, three times to return here.")}
             {th("symbol", "Symbol")}
             {th("price", "Price")}
             {th("marketCap", "Market Cap")}
