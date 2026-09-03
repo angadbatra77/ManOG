@@ -186,25 +186,30 @@ export default function ResultsTable({ results, updatedAt, variant = "buy", live
     .filter((r) => r.weeksInCriteria !== 1)
     .sort((a, b) => new Date(a.signalDate) - new Date(b.signalDate));
 
+  // The screener no longer returns older signals at all — buying N weeks
+  // late tested worse in both decades, badly enough that showing them was
+  // an invitation to lose money (4 weeks late: 28.19% vs 45.72%). So the
+  // PREVIOUS section is only rendered when rows actually exist, which now
+  // means only for History snapshots taken before that change.
   const sections =
     variant === "buy"
       ? [
           {
             key: "fresh",
             label: "FRESH",
-            note: "entered criteria at last Friday's close",
+            note: "entered criteria at last Friday's close — the only thing the strategy buys",
             emptyText: "Nothing new entered criteria in the most recent completed week.",
             rows: applySort(fresh),
           },
-          {
-            key: "running",
-            label: "PREVIOUS STOCKS",
-            note: sort
-              ? "entered criteria 2–12 weeks ago and still qualifying"
-              : "entered criteria 2–12 weeks ago and still qualifying, oldest first",
-            emptyText: "No earlier signals still qualifying.",
-            rows: applySort(previous),
-          },
+          ...(previous.length
+            ? [{
+                key: "running",
+                label: "PREVIOUS STOCKS",
+                note: "older signals, kept from an earlier snapshot — buying these tested materially worse",
+                emptyText: null,
+                rows: applySort(previous),
+              }]
+            : []),
         ]
       : [{ key: "all", label: null, rows: applySort(results), emptyText: null }];
 

@@ -230,17 +230,30 @@ function evaluateBuySignal(candles, indicators) {
   };
 }
 
-// A stock stays on the homepage as long as it entered criteria within the
-// last GRACE_WEEKS weeks and has kept qualifying every week since
-// (weeksInCriteria) — not just the week it first broke out. Tied to
-// GRACE_WEEKS specifically: that's the window where the strategy's own
-// exit rules do nothing regardless of price action, so anything still
-// inside it is still "live" by the strategy's own logic. No price-drift
-// cutoff — changeSinceEntry and daysInCriteria are shown on-screen so you
-// can judge each one yourself instead of the app silently hiding ones
-// that have already moved.
+// Only stocks that entered criteria in the most recent COMPLETED week.
+//
+// This used to show anything still qualifying within GRACE_WEEKS, on the
+// reasoning that a signal inside its own grace window is still "live". The
+// data disagrees. Buying N weeks after the signal, on 20 years:
+//
+//   0 weeks   100% of signals still qualify   45.72% CAGR
+//   1 week     58%                            43.44%
+//   2 weeks    35%                            39.24%
+//   4 weeks     9%                            28.19%
+//   8 weeks     0.2%                           1.17%
+//
+// It fails in both decades independently, and for two compounding reasons.
+// These signals decay fast — after four weeks only 9% still qualify — and
+// the survivors are not better: mean return per trade falls from 16.66% to
+// 14.03%, because the wait costs you the part of the move you were paid
+// for. Meanwhile the trade count collapses from 6,601 to 879, so the
+// portfolio cannot stay deployed.
+//
+// weeksInCriteria is computed from completed weeks only, so it stays at 1
+// for the whole week and the list does not empty itself mid-week — the
+// failure mode the old day-based window had.
 function isWithinBuyWindow(weeksInCriteria) {
-  return weeksInCriteria <= GRACE_WEEKS;
+  return weeksInCriteria === 1;
 }
 
 // If you buy now instead of on the fresh breakout week, the grace period
