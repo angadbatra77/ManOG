@@ -16,6 +16,9 @@
 //
 // Run with: node scripts/risk-profile.js
 
+import fs from "node:fs/promises";
+import path from "node:path";
+
 const SCRIPTS = "C:/Users/angad/OneDrive/Desktop/ManOG/server/scripts";
 const SRV = "file:///C:/Users/angad/OneDrive/Desktop/ManOG/server/src/";
 const { computeIndicators } = await import(SRV + "services/indicators.js");
