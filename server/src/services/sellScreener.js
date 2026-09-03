@@ -32,19 +32,29 @@ function computeGraceStatus(purchaseDate) {
   };
 }
 
-// Ratchets the stop loss up to the highest weekly low seen since purchase,
-// never down — mathematically equivalent to raising it week over week
-// whenever a new week's low exceeds the current trailing value.
-function computeTrailingStopLoss(candles, initialStopLoss, purchaseDate) {
+// Ratchets the stop up to the highest weekly CLOSE since entry, never down.
+//
+// This used to trail the highest weekly LOW. Trailing the close instead sits
+// higher, so it cuts sooner, and it tested better in both decades
+// independently — 68.13% vs 50.56% over 2006-16 and 60.92% vs 36.23% over
+// 2016-26, worth about six points a year over the full period. Looser
+// variants were monotonically worse (10%, 15%, 20% trailing all lost in both
+// halves), so this is a direction rather than a fitted peak: the strategy
+// earns by recycling capital quickly, not by giving losers room.
+//
+// The initial stop is still the breakout week's low, and the ratchet only
+// considers weeks AFTER the signal week — the breakout week's own close is
+// not part of it. That is exactly how the variant was backtested.
+function computeTrailingStopLoss(candles, initialStopLoss, anchorDate) {
   if (initialStopLoss == null) return null;
 
   let trailing = initialStopLoss;
-  const purchaseTime = purchaseDate ? new Date(purchaseDate).getTime() : null;
+  const anchorTime = anchorDate ? new Date(anchorDate).getTime() : null;
   for (const candle of candles) {
-    if (purchaseTime != null && new Date(candle.date).getTime() < purchaseTime) {
+    if (anchorTime != null && new Date(candle.date).getTime() <= anchorTime) {
       continue;
     }
-    if (candle.low > trailing) trailing = candle.low;
+    if (candle.close > trailing) trailing = candle.close;
   }
   return trailing;
 }

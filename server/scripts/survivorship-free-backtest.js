@@ -178,7 +178,12 @@ function run(symbols, label) {
           pos = null; continue;
         }
       }
-      if (week.candle.low > pos.stopLoss) pos.stopLoss = week.candle.low;
+      // Trails the weekly CLOSE, not the weekly low. Tested in both decades
+      // independently: 68.13% vs 50.56% (2006-16) and 60.92% vs 36.23%
+      // (2016-26). Looser variants lost in both halves, so tighter is a
+      // direction here, not a fitted optimum. Must stay identical to
+      // computeTrailingStopLoss in sellScreener.js.
+      if (week.candle.close > pos.stopLoss) pos.stopLoss = week.candle.close;
     }
 
     // Position still open when the data ends: either we're still holding it
