@@ -1,37 +1,43 @@
 name: Weekly screener refresh
 
-# Runs three times, all clustered right before Monday's market open:
-# Sunday 9 PM IST, Monday 3 AM IST, Monday 4 AM IST. Three independent
-# attempts mean Yahoo blocking Render's IP (an unofficial API, no SLA,
-# has happened repeatedly) during one attempt doesn't cost the whole
-# window - the next one a few hours later gets its own shot.
+# Runs four times: twice on Saturday morning so the new list is ready for
+# a weekend review, then twice more before Monday's open as a safety net.
+# Multiple independent attempts matter because Yahoo blocks Render's IP
+# intermittently (an unofficial API, no SLA, has happened repeatedly), so
+# one attempt is not reliable enough on its own.
 #
-# Deliberately NOT a Saturday-night run: NSE occasionally holds special
-# sessions on what would otherwise be a non-trading day (e.g. Diwali
-# Muhurat trading), so "is Saturday actually a trading day this week" can
-# be ambiguous. Checking from MONDAY sidesteps that entirely - the app
-# evaluates the most recently FULLY COMPLETED week (keepOnlyCompletedWeeks
-# in weeklyResample.js) by comparing calendar weeks, not by guessing
-# whether a given weekend day traded. Once we're checking from Monday,
-# we've unambiguously rolled into a new week, so whatever happened last
-# week - a normal Mon-Fri, or a Saturday Muhurat session, or anything
-# else - is automatically settled and correctly included, no special-
-# casing needed.
+# SATURDAY 6 AM IST IS THE EARLIEST USEFUL TIME, and the constraint is not
+# data availability - Yahoo has Friday's close within the hour. It is
+# keepOnlyCompletedWeeks in weeklyResample.js, which only treats the
+# current week as finished once isWeekendIST is true. That flips at
+# Saturday 00:00 IST. A refresh any earlier re-runs the PREVIOUS week and
+# returns the same list it already had.
 #
-# All three times land on SUNDAY in UTC, not Monday - IST is 5:30 ahead,
-# so "Monday 3/4 AM IST" is still Sunday night UTC. Verified directly:
+# The Sunday and Monday runs are deliberately kept. NSE occasionally holds
+# a special session on what would otherwise be a non-trading day (Diwali
+# Muhurat trading), and if one lands on a Saturday, the 6 AM scan will have
+# closed the week before it happened. The later runs re-scan once the
+# calendar has unambiguously rolled into a new week, so that session gets
+# picked up and the list corrects itself. Re-scanning is idempotent - the
+# completed week is the same, so the stock list does not change, only the
+# prices attached to it.
+#
+# Times land on SATURDAY and SUNDAY in UTC - IST is 5:30 ahead, so
+# "Monday 3 AM IST" is still Sunday night UTC. Verified directly:
+#   Sat 6:00 AM IST -> 2026-09-05T00:30:00Z (cron: 30 0 * * 6)
+#   Sat 7:30 AM IST -> 2026-09-05T02:00:00Z (cron: 0 2 * * 6)
 #   Sun 9:00 PM IST -> 2026-09-06T15:30:00Z (cron: 30 15 * * 0)
 #   Mon 3:00 AM IST -> 2026-09-06T21:30:00Z (cron: 30 21 * * 0)
-#   Mon 4:00 AM IST -> 2026-09-06T22:30:00Z (cron: 30 22 * * 0)
 #
 # This also doubles as a wake-up call for Render's free tier, which spins
 # the service down after 15 minutes of no traffic - the request here
 # brings it back up before running the refresh.
 on:
   schedule:
-    - cron: "30 15 * * 0" # Sunday 9 PM IST
-    - cron: "30 21 * * 0" # Monday 3 AM IST
-    - cron: "30 22 * * 0" # Monday 4 AM IST
+    - cron: "30 0 * * 6" # Saturday 6:00 AM IST - the earliest that yields the new week
+    - cron: "0 2 * * 6" # Saturday 7:30 AM IST - retry if Yahoo blocked the first
+    - cron: "30 15 * * 0" # Sunday 9:00 PM IST - safety net, catches a Saturday session
+    - cron: "30 21 * * 0" # Monday 3:00 AM IST - last chance before the open
   workflow_dispatch: {} # lets you trigger it manually from the Actions tab too
 
 jobs:
